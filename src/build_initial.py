@@ -178,4 +178,4 @@ class InitialBuilder:
 
 
 if __name__ == "__main__":
-    InitialBuilder(0x4E00, 0xA000)
+    InitialBuilder(0x3400, 0x4DBF)
