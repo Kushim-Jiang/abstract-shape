@@ -49,9 +49,9 @@ def _sub(src: str, amb_dict: dict[str, str]) -> str:
     return "".join(new_lst)
 
 
-def _get_uni(src: str, uni_dict: dict[str, str]) -> str:
+def _get_unify(src: str, unify_dict: dict[str, str]) -> str:
     res = ""
-    for key, val in uni_dict.items():
+    for key, val in unify_dict.items():
         if src in key:
             res += key + ": " + val + "; "
     return res[:-2]
@@ -142,9 +142,9 @@ class InitialBuilder:
                     "\t".join(
                         [
                             chr(codepoint),
-                            str(ids_dict[chr(codepoint)]),
-                            str(cog_dict[chr(codepoint)]),
-                            _get_uni(chr(codepoint), uni_dict),
+                            ";".join(ids_dict[chr(codepoint)]),
+                            ";".join(cog_dict[chr(codepoint)]),
+                            _get_unify(chr(codepoint), uni_dict),
                             "".join(original_ass_dict[chr(codepoint)]),
                             chr(codepoint),
                         ]
