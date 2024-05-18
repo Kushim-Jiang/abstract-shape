@@ -1,5 +1,6 @@
 abstract/
 initial/
+document/
 
 __pycache__/
 *.py[cod]
