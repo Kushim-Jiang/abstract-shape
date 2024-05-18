@@ -79,12 +79,13 @@ class AbstractBuilder:
         temp_ass_path = "result/iterative_ass.yaml"
         left_brace = ["", "["]
         right_brace = ["", "]"]
+        dump_dict = {}
         for key, val in temp_ass_dict.items():
             temp_val = [left_brace[_isshape(value)] + value + right_brace[_isshape(value)] for value in val]
             join_val = " ".join(temp_val)
-            temp_ass_dict[key] = join_val
+            dump_dict[key] = join_val
         with open(temp_ass_path, "w", encoding="utf-8") as f_temp:
-            yaml.dump(temp_ass_dict, f_temp, indent=4, allow_unicode=True)
+            yaml.dump(dump_dict, f_temp, indent=4, allow_unicode=True)
 
         return ass_dict
 
@@ -154,7 +155,7 @@ class AbstractBuilder:
         )
         iteratively_parsed_ass_dict = self.parse_ass_dict(parsed_ass_dict)
         as_dict = self.build_as_dict(iteratively_parsed_ass_dict)
-        parsed_indexed_list = self.build_indexed_ass_dict(iteratively_parsed_ass_dict, as_dict)
+        _ = self.build_indexed_ass_dict(iteratively_parsed_ass_dict, as_dict)
         self.build_unification()
 
 
