@@ -1,5 +1,8 @@
 import json
+import re
 from pathlib import Path
+
+from ids import IDS
 
 
 REPO_DIR = Path(__file__).parent.parent
@@ -8,7 +11,7 @@ JSON_DIR = REPO_DIR.parent / "kushim-jiang.github.io" / "assets" / "abstract.jso
 
 
 FILE_NAMES = ["main", "a", "b", "ci", "gh"]
-REPLACEMENTS = {
+ZERO_REPLACE = {
     "“": "「",
     "”": "」",
     "‘": "『",
@@ -23,131 +26,146 @@ REPLACEMENTS = {
 }
 
 
-def _parse_line(line: str) -> tuple[str, str, str, str]:
+def parse_line(line: str) -> tuple[str, str, str, str]:
     line = line.strip()
     parts = line.split("\t") + [""] * 4
     return parts[:4]
 
 
-def txt_to_json() -> None:
-    # first parsing
-    first_result = []
+def decompose_ids(entry: dict, FOUR_REPLACE: dict, ids_repr: str) -> str:
+    while True:
+        new_repr = ids_repr
+        for comp in re.findall(r"\[.*?\]", ids_repr):
+            if comp in FOUR_REPLACE:
+                new_repr = re.sub(re.escape(comp), FOUR_REPLACE[comp], new_repr)
+        if new_repr == ids_repr:
+            break
+        assert len(new_repr) < 100, f"New representation for {entry['char']} too long: {new_repr}"
+        ids_repr = new_repr
+    return ids_repr
+
+
+def first_parsing():
+    result: list[dict] = []
     for file_name in FILE_NAMES:
         file_path = TXT_DIR / f"abstract_{file_name}.txt"
         with file_path.open("r", encoding="utf-8") as f:
             for line in f:
-                char, src_one, src_two, comment = _parse_line(line)
+                char, src_one, src_two, comment = parse_line(line)
                 src_one = src_one if not src_one.startswith("*") else char + "(" + src_one.removeprefix("*") + ")"
-                src_two = src_two if not src_two.startswith("*") else char + "(" + src_two.removeprefix("*") + ")"
-                for old, new in REPLACEMENTS.items():
+                for old, new in ZERO_REPLACE.items():
                     comment = comment.replace(old, new)
-                first_result.append(
-                    {
-                        "char": char,
-                        "src_one": src_one,
-                        "src_two": src_two,
-                        "comment": comment.strip(),
-                    }
-                )
+                result.append({"char": char, "src_one": src_one, "src_two": src_two, "comment": comment.strip()})
+    return result
+
+
+def second_parsing(ENTRIES: list[dict]) -> list[dict]:
+    result: list[dict] = []
+    for entry in ENTRIES:
+        entry_dict = {"char": entry["char"]}
+
+        if entry["src_one"] == "X":
+            entry_dict["x"] = True
+        elif not entry["src_one"].startswith("="):
+            entry_dict["ids"] = repr(IDS.from_str(entry["src_one"]))
+        else:
+            entry_dict["is"] = entry["src_one"].removeprefix("=")
+
+        if entry["src_two"] and not entry["src_two"].startswith("*"):  # assert `src_two` is raw IDS
+            entry_dict["refer"] = repr(IDS.from_str(entry["src_two"]))
+        elif entry["src_two"].startswith("*"):
+            entry_dict["to"] = entry["src_two"].removeprefix("*")
+
+        if entry["comment"]:
+            entry_dict["note"] = entry["comment"]
+        result.append(entry_dict)
+    return result
+
+
+def get_is_graph(ENTRIES: list[dict]) -> dict:
+    graph = {}
+    for entry in ENTRIES:
+        a, b = entry.get("char"), entry.get("is")
+        if a and b:
+            graph.setdefault(b, set()).add(a)
+    return graph
+
+
+def get_replacements(ENTRIES: list[dict], ALL_IDS: str) -> dict:
+    result = {}
+    chars = set(entry["char"] for entry in ENTRIES if entry["char"] not in ALL_IDS)
+    ids_s = "".join(entry["ids"] for entry in ENTRIES if "ids" in entry)
+    for char in chars:
+        char_repr = repr(IDS.from_str(char))
+        result_repr_s = [entry["ids"] for entry in ENTRIES if entry.get("char") == char and "ids" in entry and "(" not in entry["ids"]]
+        if char_repr not in result_repr_s and char_repr in ids_s and result_repr_s:
+            result[char_repr] = result_repr_s[0]
+    return result
+
+
+def get_variants(ENTRIES: list[dict], IS_RELATION: dict, REPLACEMENTS: dict) -> dict:
+    result = {}
+    for entry in ENTRIES:
+        if "ids" in entry:
+            ids_repr = entry["ids"]
+            ids_repr = decompose_ids(entry, REPLACEMENTS, ids_repr)
+
+            chars_str = result.setdefault(ids_repr, ["", ""])
+            if entry["char"] not in chars_str[0]:
+                chars_str[0] += entry["char"]
+            if entry["char"] in IS_RELATION:
+                for c in IS_RELATION[entry["char"]]:
+                    if c not in chars_str[1]:
+                        chars_str[1] += c
+    return result
+
+
+def get_new_variants(VARIANTS: dict) -> dict:
+    result = {}
+    ids_repr_sorted = sorted(VARIANTS.keys())
+    for ids_repr in ids_repr_sorted:
+        if len(VARIANTS[ids_repr][0]) > 1:
+            for variant in VARIANTS[ids_repr][0]:
+                if variant not in ids_repr:
+                    VARIANTS[ids_repr][0] = "".join(v for v in VARIANTS[ids_repr][0] if v != variant)
+                    if variant not in VARIANTS[ids_repr][1]:
+                        VARIANTS[ids_repr][1] += variant
+        result[ids_repr] = VARIANTS[ids_repr][0] + "@" + VARIANTS[ids_repr][1]
+        if len(VARIANTS[ids_repr][0]) > 1:
+            print(f"Warning: Multiple characters for {ids_repr}: {VARIANTS[ids_repr][0]}")
+    return result
+
+
+def decompose(ENTRIES: list[dict], REPLACEMENTS: dict):
+    for entry in ENTRIES:
+        if "ids" in entry:
+            ids_repr = entry["ids"]
+            new_ids_repr = decompose_ids(entry, REPLACEMENTS, ids_repr)
+            if new_ids_repr != ids_repr:
+                entry["new_ids"] = new_ids_repr
+
+
+def txt_to_json() -> None:
+    # first parsing
+    ONE_ENTRIES = first_parsing()
 
     # second parsing
-    from ids import IDS
+    TWO_ENTRIES = second_parsing(ONE_ENTRIES)
 
-    chars = set()
-    for item in first_result:
-        src_one = item["src_one"]
-        comment = item["comment"]
-        if not src_one.startswith("="):
-            try:
-                ids = IDS.from_str(src_one)
-                if ids and ids.count() == 1 and src_one != "X":
-                    chars.add((repr(ids), comment))
-            except Exception:
-                pass
+    # third parsing
+    is_graph = get_is_graph(TWO_ENTRIES)
+    is_relation = {b: "".join(sorted(as_)) for b, as_ in is_graph.items()}
+    THREE_ALL = "".join(a for as_ in is_graph.values() for a in as_)
 
-    # read geta.txt
-    geta_path = TXT_DIR / "geta.txt"
-    if geta_path.exists():
-        with geta_path.open("r", encoding="utf-8") as f:
-            for line in f:
-                parts = line.strip().split("\t")
-                if len(parts) >= 2:
-                    glyph, shape = parts[:2]
-                    chars.add((glyph, shape))
+    FOUR_REPLACE = get_replacements(TWO_ENTRIES, THREE_ALL)
+    FIVE_VARIANTS = get_variants(TWO_ENTRIES, is_relation, FOUR_REPLACE)
+    SIX_VARIANTS = get_new_variants(FIVE_VARIANTS)
+    decompose(TWO_ENTRIES, FOUR_REPLACE)
 
-    # sort chars
-    chars_list = sorted(list(chars), key=lambda x: x[0])
-
-    entries = []
-    for item in first_result:
-        char: str = item["char"]
-        src_one: str = item["src_one"]
-        src_two: str = item["src_two"]
-        comment: str = item["comment"]
-        entry = {"char": char}
-        if src_one == "X":
-            entry["note"] = comment
-            entry["x"] = True
-            try:
-                ids = IDS.from_str(src_two)
-                if ids is not None:
-                    entry["ref"] = repr(ids)
-            except Exception:
-                pass
-        elif src_one.startswith("="):
-            entry["note"] = comment
-            try:
-                to_ids = IDS.from_str(src_one[1:])
-                entry["to"] = repr(to_ids)
-            except Exception:
-                entry["to"] = src_one[1:]
-            try:
-                ref_ids = IDS.from_str(src_two)
-                if ref_ids is not None:
-                    entry["ref"] = repr(ref_ids)
-            except Exception:
-                pass
-        else:
-            try:
-                ids = IDS.from_str(src_one)
-                if ids is not None:
-                    entry["ids"] = repr(ids)
-                    if ids.count() == 1:
-                        try:
-                            ref_ids = IDS.from_str(src_two)
-                            if ref_ids is not None:
-                                entry["ref"] = repr(ref_ids)
-                        except Exception:
-                            pass
-                    else:
-                        entry["note"] = comment
-                        try:
-                            ref_ids = IDS.from_str(src_two)
-                            if ref_ids is not None:
-                                entry["ref"] = repr(ref_ids)
-                        except Exception:
-                            pass
-            except Exception:
-                pass
-        entries.append(entry)
-
-    # sort entries by char, ids, x
-    def entry_sort_key(e: dict):
-        return (
-            e.get("char", ""),
-            e.get("ids", ""),
-            str(e.get("x", False)),
-        )
-
-    entries_list = sorted(entries, key=entry_sort_key)
-
-    # output
-    output = {
-        "chars": chars_list,
-        "entries": entries_list,
-    }
+    # write to json
+    JSON_DIR.parent.mkdir(parents=True, exist_ok=True)
     with JSON_DIR.open("w", encoding="utf-8") as f:
-        json.dump(output, f, ensure_ascii=False, indent=2)
+        json.dump({"entries": TWO_ENTRIES, "variants": SIX_VARIANTS}, f, ensure_ascii=False, indent=2)
 
 
 def main():

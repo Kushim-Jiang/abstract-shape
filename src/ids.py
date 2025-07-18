@@ -25,7 +25,7 @@ class IDC:
 
     @classmethod
     def arity(cls, idc: IDC_) -> int:
-        if idc in (cls.LR, cls.UD, cls.RD, cls.RU, cls.LD, cls.LU, cls.OD, cls.OR, cls.OU, cls.OL):
+        if idc in (cls.LR, cls.UD, cls.RD, cls.RU, cls.LD, cls.LU, cls.OD, cls.OR, cls.OU, cls.OL, cls.OC):
             return 2
         elif idc in (cls.LL, cls.UU):
             return 3
@@ -52,14 +52,14 @@ class IDS(NodeMixin):
 
         if len(args) == 1 and isinstance(args[0], str):
             parsed = IDS.from_str(args[0])
-            self.operator = getattr(parsed, "operator", None)
-            self.component = getattr(parsed, "component", None)
+            self.operator = parsed.operator
+            self.char = parsed.char
             self.note = ""
-            for child in getattr(parsed, "children", []):
+            for child in parsed.children:
                 child.parent = self
         elif len(args) == 1 and isinstance(args[0], (Char, IDS)):
             self.operator = None
-            self.component = args[0]
+            self.char = args[0]
         elif len(args) >= 2 and isinstance(args[0], IDC_):
             self.operator = args[0]
             operands = args[1:]
@@ -69,7 +69,7 @@ class IDS(NodeMixin):
                 if not isinstance(op, (Char, IDS)):
                     raise TypeError("Operands must be Char or IDS")
                 op.parent = self
-            self.component = None
+            self.char = None
         else:
             raise ValueError("Invalid IDS initialization")
 
@@ -125,11 +125,20 @@ class IDS(NodeMixin):
                 return repr(node)
             elif isinstance(node, IDS):
                 if node.operator is None:
-                    return prefix(node.component)
+                    return prefix(node.char)
                 else:
                     return str(node.operator) + "".join(prefix(child) for child in node.children)
 
         return prefix(self)
+
+    def chars(self) -> list[Char]:
+        chars = []
+        for child in self.children:
+            if isinstance(child, Char):
+                chars.append(child)
+            elif isinstance(child, IDS):
+                chars.extend(child.chars())
+        return chars
 
     def count(self) -> int:
         def count_children(node):
