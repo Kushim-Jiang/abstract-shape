@@ -17,6 +17,7 @@ BIBLIOGRAPHY = {
     "”": "」",
     "‘": "『",
     "’": "』",
+    "·": "・",
     "SW": "《说文解字》",
     "GY": "《广韵》",
     "CY": "《常用漢字表》（日本）",
@@ -153,7 +154,7 @@ def get_new_variants(VARIANTS: dict) -> dict:
                     VARIANTS[ids_repr][0] = "".join(v for v in VARIANTS[ids_repr][0] if v != variant)
                     if variant not in VARIANTS[ids_repr][1]:
                         VARIANTS[ids_repr][1] += variant
-        result[ids_repr] = VARIANTS[ids_repr][0] + "@" + VARIANTS[ids_repr][1]
+        result[ids_repr] = VARIANTS[ids_repr][0] + "@" + "".join(sorted(VARIANTS[ids_repr][1]))
         if len(VARIANTS[ids_repr][0]) > 1:
             print(f"Warning: Multiple characters for {ids_repr}: {VARIANTS[ids_repr][0]}")
     return result
