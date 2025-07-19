@@ -1,3 +1,4 @@
+from collections import deque
 import json
 import re
 from pathlib import Path
@@ -82,13 +83,34 @@ def parse_dict(ENTRIES: list[dict]) -> list[dict]:
     return result
 
 
-def get_is_graph(ENTRIES: list[dict]) -> dict:
+def get_is_graph(ENTRIES: list[dict]) -> dict[str, set[str]]:
     graph = {}
     for entry in ENTRIES:
         a, b = entry.get("char"), entry.get("is")
         if a and b:
             graph.setdefault(b, set()).add(a)
     return graph
+
+
+def find_nodes_reachable_to(graph: dict[str, set[str]], target: str) -> set[str]:
+    if target not in graph:
+        return set()
+
+    visited = set()
+    queue = deque()
+
+    if target in graph:
+        queue.extend(graph[target])
+
+    while queue:
+        current = queue.popleft()
+        if current not in visited:
+            visited.add(current)
+            if current in graph:
+                for neighbor in graph[current]:
+                    if neighbor not in visited:
+                        queue.append(neighbor)
+    return visited
 
 
 def get_replacements(ENTRIES: list[dict], ALL_IDS: str) -> dict:
@@ -168,7 +190,8 @@ def txt_to_json() -> None:
 
     # third parsing
     is_graph = get_is_graph(TWO_ENTRIES)
-    is_relation = {b: "".join(sorted(as_)) for b, as_ in is_graph.items()}
+
+    is_relation = {b: "".join(find_nodes_reachable_to(is_graph, b)) for b in is_graph}
     THREE_ALL = "".join(a for as_ in is_graph.values() for a in as_)
 
     FOUR_REPLACE = get_replacements(TWO_ENTRIES, THREE_ALL)
