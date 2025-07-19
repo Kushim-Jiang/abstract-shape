@@ -11,7 +11,7 @@ JSON_DIR = REPO_DIR.parent / "kushim-jiang.github.io" / "assets" / "abstract.jso
 
 
 FILE_NAMES = ["main", "a", "b", "ci", "gh"]
-ZERO_REPLACE = {
+BIBLIOGRAPHY = {
     "“": "「",
     "”": "」",
     "‘": "『",
@@ -45,7 +45,7 @@ def decompose_ids(entry: dict, FOUR_REPLACE: dict, ids_repr: str) -> str:
     return ids_repr
 
 
-def first_parsing():
+def parse_txt():
     result: list[dict] = []
     for file_name in FILE_NAMES:
         file_path = TXT_DIR / f"abstract_{file_name}.txt"
@@ -53,13 +53,13 @@ def first_parsing():
             for line in f:
                 char, src_one, src_two, comment = parse_line(line)
                 src_one = src_one if not src_one.startswith("*") else char + "(" + src_one.removeprefix("*") + ")"
-                for old, new in ZERO_REPLACE.items():
+                for old, new in BIBLIOGRAPHY.items():
                     comment = comment.replace(old, new)
                 result.append({"char": char, "src_one": src_one, "src_two": src_two, "comment": comment.strip()})
     return result
 
 
-def second_parsing(ENTRIES: list[dict]) -> list[dict]:
+def parse_dict(ENTRIES: list[dict]) -> list[dict]:
     result: list[dict] = []
     for entry in ENTRIES:
         entry_dict = {"char": entry["char"]}
@@ -95,6 +95,7 @@ def get_replacements(ENTRIES: list[dict], ALL_IDS: str) -> dict:
     result = {}
     chars = set(entry["char"] for entry in ENTRIES if entry["char"] not in ALL_IDS)
     ids_s = "".join(entry["ids"] for entry in ENTRIES if "ids" in entry)
+    ids_s += "".join(entry["refer"] for entry in ENTRIES if "refer" in entry)
     for char in chars:
         char_repr = repr(IDS.from_str(char))
         result_repr_s = [entry["ids"] for entry in ENTRIES if entry.get("char") == char and "ids" in entry and "(" not in entry["ids"]]
@@ -145,12 +146,25 @@ def decompose(ENTRIES: list[dict], REPLACEMENTS: dict):
                 entry["new_ids"] = new_ids_repr
 
 
+def assert_refer(ENTRIES, REPLACEMENTS):
+    ids_s = ""
+    for entry in ENTRIES:
+        ids = entry.get("ids") or ""
+        new_ids = entry.get("new_ids") or ""
+        ids_s += ids + new_ids
+    for entry in ENTRIES:
+        if "refer" in entry:
+            decomposed_ids = decompose_ids(entry, REPLACEMENTS, entry["refer"])
+            for ids in re.findall(r"\[.*?\]", decomposed_ids):
+                assert ids in ids_s, f"Referenced IDS {ids} not found in all IDSs"
+
+
 def txt_to_json() -> None:
     # first parsing
-    ONE_ENTRIES = first_parsing()
+    ONE_ENTRIES = parse_txt()
 
     # second parsing
-    TWO_ENTRIES = second_parsing(ONE_ENTRIES)
+    TWO_ENTRIES = parse_dict(ONE_ENTRIES)
 
     # third parsing
     is_graph = get_is_graph(TWO_ENTRIES)
@@ -160,7 +174,9 @@ def txt_to_json() -> None:
     FOUR_REPLACE = get_replacements(TWO_ENTRIES, THREE_ALL)
     FIVE_VARIANTS = get_variants(TWO_ENTRIES, is_relation, FOUR_REPLACE)
     SIX_VARIANTS = get_new_variants(FIVE_VARIANTS)
+
     decompose(TWO_ENTRIES, FOUR_REPLACE)
+    assert_refer(TWO_ENTRIES, FOUR_REPLACE)
 
     # write to json
     JSON_DIR.parent.mkdir(parents=True, exist_ok=True)
