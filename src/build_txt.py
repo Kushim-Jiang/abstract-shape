@@ -67,10 +67,26 @@ def build_geta():
             f.write(result)
 
 
+def build_extra():
+    sheet: DataFrame = XLSX_FILE.get("extra")
+
+    if sheet is not None:
+        result = ""
+        for _, row in sheet.iterrows():
+            shape = row.iloc[0] if not str(row.iloc[0]) == "nan" else ""
+            refer = row.iloc[1] if not str(row.iloc[1]) == "nan" else ""
+            note = row.iloc[2] if not str(row.iloc[2]) == "nan" else ""
+            result += f"{shape}\t{refer}\t{note}\n"
+
+        with open(INPUT_DIR / "extra.txt", "w", encoding="utf-8") as f:
+            f.write(result)
+
+
 def main():
     build_historical()
     build_now()
     build_geta()
+    build_extra()
 
 
 if __name__ == "__main__":
