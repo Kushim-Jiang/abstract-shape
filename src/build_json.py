@@ -18,6 +18,7 @@ BIBLIOGRAPHY = {
     "‘": "『",
     "’": "』",
     "·": "・",
+    "…": "⋯",
     "SW": "《说文解字》",
     "GY": "《广韵》",
     "CY": "《常用漢字表》（日本）",
@@ -128,19 +129,20 @@ def get_replacements(ENTRIES: list[dict], only_is: bool) -> dict:
             result[char_repr] = "[X]"
             continue
 
-        if entry.get("is"):
-            is_entry = [e for e in ENTRIES if e.get("is") and e.get("char") == entry["char"]]
-            if len(is_entry) == 1:
-                is_repr = repr(IDS.from_str(is_entry[0]["is"]))
-                result[char_repr] = is_repr
-                continue
+        if entry["char"] == "卩":
+            pass
+        is_entry = [e for e in ENTRIES if e.get("is") and e.get("char") == entry["char"]]
+        ids_entry = [e for e in ENTRIES if e.get("ids") and e.get("char") == entry["char"]]
+
+        if len(is_entry) == 1 and len(ids_entry) == 0:
+            is_repr = repr(IDS.from_str(is_entry[0]["is"]))
+            result[char_repr] = is_repr
+            continue
         if not only_is:
-            if entry.get("ids"):
-                ids_entry = [e for e in ENTRIES if e.get("ids") and e.get("char") == entry["char"]]
-                if len(ids_entry) == 1:
-                    ids_repr = ids_entry[0]["ids"]
-                    result[char_repr] = ids_repr
-                    continue
+            if len(ids_entry) == 1:
+                ids_repr = ids_entry[0]["ids"]
+                result[char_repr] = ids_repr
+                continue
 
     return result
 
