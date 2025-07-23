@@ -29,10 +29,10 @@ BIBLIOGRAPHY = {
 }
 
 
-def parse_line(line: str) -> tuple[str, str, str, str]:
+def parse_line(line: str, num: int) -> list[str]:
     line = line.strip()
-    parts = line.split("\t") + [""] * 4
-    return parts[:4]
+    parts = line.split("\t") + [""] * num
+    return parts[:num]
 
 
 def decompose_ids(REPLACEMENTS: dict, ids_repr: str) -> str:
@@ -56,7 +56,7 @@ def parse_txt():
         file_path = TXT_DIR / f"abstract_{file_name}.txt"
         with file_path.open("r", encoding="utf-8") as f:
             for line in f:
-                char, src_one, src_two, comment = parse_line(line)
+                char, src_one, src_two, comment = parse_line(line, 4)
                 src_one = src_one if not src_one.startswith("*") else char + "(" + src_one.removeprefix("*") + ")"
                 for old, new in BIBLIOGRAPHY.items():
                     comment = comment.replace(old, new)
@@ -252,6 +252,47 @@ def get_extra(REPLACEMENTS: dict[str, str], ALL_IDS: str) -> list[dict[str, str]
     return result
 
 
+def get_ob(REPLACEMENTS: dict[str, str], ALL_IDS: str) -> dict[str, str]:
+    ob_path = TXT_DIR / "ob.txt"
+    if not ob_path.exists():
+        return {}
+    with ob_path.open("r", encoding="utf-8") as f:
+        lines = f.readlines()
+
+    line_dicts = []
+    for line in lines:
+        code, char, con, recon, comm = parse_line(line.strip(), 5)
+        line_dict = {"code": code, "ob": char}
+        if con:
+            con = repr(IDS.from_str(con.strip()))
+            con = decompose_ids(REPLACEMENTS, con.strip())
+            for ids in re.findall(r"\[.*?\]", con):
+                assert ids[1:-1] not in ALL_IDS, f"Referenced IDS {ids} found in all IDSs"
+            line_dict["ids"] = con
+        if recon:
+            recon = repr(IDS.from_str(recon.strip()))
+            recon = decompose_ids(REPLACEMENTS, recon.strip())
+            for ids in re.findall(r"\[.*?\]", recon):
+                assert ids[1:-1] not in ALL_IDS, f"Referenced IDS {ids} found in all IDSs"
+            line_dict["refer"] = recon
+        if comm:
+            line_dict["note"] = comm.strip()
+        if line_dict:
+            line_dicts.append(line_dict)
+
+    ids_list = []
+    for item in line_dicts:
+        if "ids" in item:
+            if item["ids"] not in ids_list:
+                ids_list.append(item["ids"])
+
+    result = {}
+    for ids in ids_list:
+        chars = [item["ob"] + item["code"] for item in line_dicts if item["ids"] == ids]
+        result[ids] = chars[0] + "@" + "".join(chars[1:])
+    return result
+
+
 def txt_to_json() -> None:
     # first parsing
     ONE_ENTRIES = parse_txt()
@@ -282,10 +323,12 @@ def txt_to_json() -> None:
 
     assert_refer(TWO_ENTRIES, FOUR_REPLACE, THREE_ALL)
 
+    OB = get_ob(FOUR_REPLACE, THREE_ALL)
+
     # write to json
     JSON_DIR.parent.mkdir(parents=True, exist_ok=True)
     with JSON_DIR.open("w", encoding="utf-8") as f:
-        json.dump({"entries": TWO_ENTRIES, "variants": SIX_VARIANTS, "geta": GETA}, f, ensure_ascii=False, indent=2)
+        json.dump({"entries": TWO_ENTRIES, "variants": SIX_VARIANTS, "geta": GETA, "ob": OB}, f, ensure_ascii=False, indent=2)
 
 
 def main():
