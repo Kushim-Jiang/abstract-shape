@@ -106,12 +106,25 @@ def build_ob():
             f.write(result)
 
 
+def build_paper():
+    sheet: DataFrame = XLSX_FILE.get("paper")
+
+    if sheet is not None:
+        result = ""
+        for _, row in sheet.iterrows():
+            result += f"{row.iloc[0]}\t{row.iloc[1]}\t{row.iloc[2]}\n"
+
+    with open(INPUT_DIR / "paper.txt", "w", encoding="utf-8") as f:
+        f.write(result)
+
+
 def main():
     build_historical()
     build_now()
     build_geta()
     build_extra()
     build_ob()
+    build_paper()
 
 
 if __name__ == "__main__":

@@ -28,6 +28,20 @@ BIBLIOGRAPHY = {
     "FY": "《汉语方言大字典》",
 }
 
+PAPERS = {}
+with (TXT_DIR / "paper.txt").open("r", encoding="utf-8") as f:
+    for line in f.readlines():
+        number, name, ref = line.strip().split("\t")
+        PAPERS[number] = f"<a href={ref}>{name}</a>"
+
+
+def replaced(value: str):
+    for old, new in PAPERS.items():
+        value = value.replace(old, new)
+    for old, new in BIBLIOGRAPHY.items():
+        value = value.replace(old, new)
+    return value
+
 
 def parse_line(line: str, num: int) -> list[str]:
     line = line.strip()
@@ -58,8 +72,7 @@ def parse_txt():
             for line in f:
                 char, src_one, src_two, comment = parse_line(line, 4)
                 src_one = src_one if not src_one.startswith("*") else char + "(" + src_one.removeprefix("*") + ")"
-                for old, new in BIBLIOGRAPHY.items():
-                    comment = comment.replace(old, new)
+                comment = replaced(comment)
                 result.append({"char": char, "src_one": src_one, "src_two": src_two, "comment": comment.strip()})
     return result
 
@@ -129,8 +142,6 @@ def get_replacements(ENTRIES: list[dict], only_is: bool) -> dict:
             result[char_repr] = "[X]"
             continue
 
-        if entry["char"] == "卩":
-            pass
         is_entry = [e for e in ENTRIES if e.get("is") and e.get("char") == entry["char"]]
         ids_entry = [e for e in ENTRIES if e.get("ids") and e.get("char") == entry["char"]]
 
@@ -208,8 +219,7 @@ def get_geta() -> dict[str, str]:
     result = {}
     for line in lines:
         key, value = line.split("\t")
-        for old, new in BIBLIOGRAPHY.items():
-            value = value.replace(old, new)
+        value = replaced(value)
         result[key] = value.strip()
     return result
 
@@ -235,9 +245,7 @@ def get_extra(REPLACEMENTS: dict[str, str], ALL_IDS: str) -> list[dict[str, str]
         if refer:
             for ids in re.findall(r"\[.*?\]", refer):
                 assert ids[1:-1] not in ALL_IDS, f"Referenced IDS {ids} found in all IDSs"
-
-        for old, new in BIBLIOGRAPHY.items():
-            note = note.replace(old, new)
+        note = replaced(note)
 
         if shape:
             line_dict["ids"] = shape
