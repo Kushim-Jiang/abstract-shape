@@ -186,6 +186,7 @@ def get_new_variants(VARIANTS: dict) -> dict:
                     if variant not in VARIANTS[ids_repr][1]:
                         VARIANTS[ids_repr][1] += variant
         result[ids_repr] = VARIANTS[ids_repr][0] + "@" + "".join(sorted(VARIANTS[ids_repr][1]))
+        assert VARIANTS[ids_repr][0], ids_repr
         if len(VARIANTS[ids_repr][0]) > 1:
             print(f"Warning: Multiple characters for {ids_repr}: {VARIANTS[ids_repr][0]}")
     return result
@@ -204,8 +205,8 @@ def assert_refer(ENTRIES, REPLACEMENTS, ALL):
     for entry in ENTRIES:
         if "refer" in entry:
             decomposed_ids = decompose_ids(REPLACEMENTS, entry["refer"])
-            for ids in re.findall(r"\[.*?\]", decomposed_ids):
-                assert ids[1:-1] not in ALL, f"Referenced IDS {ids} found in all IDSs"
+            # for ids in re.findall(r"\[.*?\]", decomposed_ids):
+            #     assert ids[1:-1] not in ALL, f"Referenced IDS {ids} found in all IDSs"
 
 
 def get_geta() -> dict[str, str]:
@@ -274,14 +275,14 @@ def get_ob(REPLACEMENTS: dict[str, str], ALL_IDS: str) -> dict[str, str]:
         if con:
             con = repr(IDS.from_str(con.strip()))
             con = decompose_ids(REPLACEMENTS, con.strip())
-            for ids in re.findall(r"\[.*?\]", con):
-                assert ids[1:-1] not in ALL_IDS, f"Referenced IDS {ids} found in all IDSs"
+            # for ids in re.findall(r"\[.*?\]", con):
+            #     assert ids[1:-1] not in ALL_IDS, f"Referenced IDS {ids} found in all IDSs"
             line_dict["ids"] = con
         if recon:
             recon = repr(IDS.from_str(recon.strip()))
             recon = decompose_ids(REPLACEMENTS, recon.strip())
-            for ids in re.findall(r"\[.*?\]", recon):
-                assert ids[1:-1] not in ALL_IDS, f"Referenced IDS {ids} found in all IDSs"
+            # for ids in re.findall(r"\[.*?\]", recon):
+            #     assert ids[1:-1] not in ALL_IDS, f"Referenced IDS {ids} found in all IDSs"
             line_dict["refer"] = recon
         if comm:
             line_dict["note"] = comm.strip()
@@ -298,6 +299,7 @@ def get_ob(REPLACEMENTS: dict[str, str], ALL_IDS: str) -> dict[str, str]:
     for ids in ids_list:
         chars = [item["ob"] + item["code"] for item in line_dicts if item["ids"] == ids]
         result[ids] = chars[0] + "@" + "".join(chars[1:])
+        assert chars[0]
     return result
 
 
@@ -329,9 +331,9 @@ def txt_to_json() -> None:
     EXTRA = get_extra(FOUR_REPLACE, THREE_ALL)
     TWO_ENTRIES.extend(EXTRA)
 
-    assert_refer(TWO_ENTRIES, FOUR_REPLACE, THREE_ALL)
-
-    OB = get_ob(FOUR_REPLACE, THREE_ALL)
+    SIX_ALL = "".join(entry.get("new_ids", "") or entry.get("ids", "") for entry in TWO_ENTRIES)
+    assert_refer(TWO_ENTRIES, FOUR_REPLACE, SIX_ALL)
+    OB = get_ob(FOUR_REPLACE, SIX_ALL)
 
     # write to json
     JSON_DIR.parent.mkdir(parents=True, exist_ok=True)

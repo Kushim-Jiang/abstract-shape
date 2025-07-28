@@ -25,11 +25,11 @@ class IDC:
 
     @classmethod
     def arity(cls, idc: IDC_) -> int:
-        if idc in (cls.LR, cls.UD, cls.RD, cls.RU, cls.LD, cls.LU, cls.OD, cls.OR, cls.OU, cls.OL, cls.OC):
+        if idc in (cls.LR, cls.UD, cls.RD, cls.RU, cls.LD, cls.LU, cls.OD, cls.OR, cls.OU, cls.OL, cls.OC, cls.XX):
             return 2
         elif idc in (cls.LL, cls.UU):
             return 3
-        elif idc in (cls.XX, cls.MI, cls.RO):
+        elif idc in (cls.MI, cls.RO):
             return 1
         else:
             raise ValueError(f"Unknown IDC: {idc}")
