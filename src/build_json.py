@@ -31,7 +31,7 @@ BIBLIOGRAPHY = {
 PAPERS = {}
 with (TXT_DIR / "paper.txt").open("r", encoding="utf-8") as f:
     for line in f.readlines():
-        number, name, ref = line.strip().split("\t")
+        number, name, ref = line.removesuffix("\n").split("\t")
         PAPERS[number] = f"<a href={ref}>{name}</a>"
 
 

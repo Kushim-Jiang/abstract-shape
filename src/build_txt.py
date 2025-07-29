@@ -113,6 +113,7 @@ def build_paper():
         result = ""
         for _, row in sheet.iterrows():
             result += f"{row.iloc[0]}\t{row.iloc[1]}\t{row.iloc[2]}\n"
+            result = result.replace("nan", "")
 
     with open(INPUT_DIR / "paper.txt", "w", encoding="utf-8") as f:
         f.write(result)
