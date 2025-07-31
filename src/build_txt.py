@@ -46,6 +46,8 @@ def build_now():
                 num, char, construct, reconstruct, comment = line.split("\t")
                 if (construct + reconstruct + comment).strip() != "":
                     store = char if char.strip() != "" else store
+                    if construct.startswith("*") and reconstruct == "":
+                        reconstruct = construct
                     result += "\t".join([store, construct, reconstruct, comment]).rstrip() + "\n"
             except ValueError:
                 pass

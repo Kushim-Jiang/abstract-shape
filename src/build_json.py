@@ -186,7 +186,8 @@ def get_new_variants(VARIANTS: dict) -> dict:
                     if variant not in VARIANTS[ids_repr][1]:
                         VARIANTS[ids_repr][1] += variant
         result[ids_repr] = VARIANTS[ids_repr][0] + "@" + "".join(sorted(VARIANTS[ids_repr][1]))
-        assert VARIANTS[ids_repr][0], ids_repr
+        if len(VARIANTS[ids_repr][0]) < 1:
+            print(f"Warning: No characters for {ids_repr}: {''.join(sorted(VARIANTS[ids_repr][1]))}")
         if len(VARIANTS[ids_repr][0]) > 1:
             print(f"Warning: Multiple characters for {ids_repr}: {VARIANTS[ids_repr][0]}")
     return result
@@ -338,7 +339,9 @@ def txt_to_json() -> None:
     # write to json
     JSON_DIR.parent.mkdir(parents=True, exist_ok=True)
     with JSON_DIR.open("w", encoding="utf-8") as f:
-        json.dump({"entries": TWO_ENTRIES, "variants": SIX_VARIANTS, "geta": GETA, "ob": OB}, f, ensure_ascii=False, indent=2)
+        json.dump(
+            {"entries": TWO_ENTRIES, "variants": SIX_VARIANTS, "geta": GETA, "ob": OB}, f, ensure_ascii=False, indent=2
+        )
 
 
 def main():
