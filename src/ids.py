@@ -82,7 +82,7 @@ class IDS(NodeMixin):
             while index < len(ids) and ids[index].isspace():
                 index += 1
             if index >= len(ids):
-                raise ValueError("Unexpected end of string")
+                raise ValueError(f"Unexpected end of string: {ids}")
             if ids[index] in IDC.ALL:
                 operator = ids[index]
                 index += 1
