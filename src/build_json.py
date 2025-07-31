@@ -304,6 +304,43 @@ def get_ob(REPLACEMENTS: dict[str, str], ALL_IDS: str) -> dict[str, str]:
     return result
 
 
+def custom_dump(obj, indent=2):
+    compact_json = json.dumps(obj, separators=(",", ":"), indent=indent, ensure_ascii=False)
+    parsed = json.loads(compact_json)
+
+    def encode_with_condition(o):
+        if isinstance(o, dict):
+            if len(o) >= 10:
+                items = []
+                for k, v in o.items():
+                    k_str = json.dumps(k, ensure_ascii=False)
+                    v_str = encode_with_condition(v)
+                    items.append(f"{' ' * indent}{k_str}: {v_str}")
+                return "{\n" + ",\n".join(items) + "\n}"
+            else:
+                items = []
+                for k, v in o.items():
+                    k_str = json.dumps(k, ensure_ascii=False)
+                    v_str = encode_with_condition(v)
+                    items.append(f"{k_str}: {v_str}")
+                return "{" + ", ".join(items) + "}"
+        elif isinstance(o, list):
+            if len(o) >= 10:
+                items = []
+                for item in o:
+                    items.append(" " * indent + encode_with_condition(item))
+                return "[\n" + ",\n".join(items) + "\n]"
+            else:
+                items = []
+                for item in o:
+                    items.append(encode_with_condition(item))
+                return "[" + ", ".join(items) + "]"
+        else:
+            return json.dumps(o, ensure_ascii=False)
+
+    return encode_with_condition(parsed)
+
+
 def txt_to_json() -> None:
     # first parsing
     ONE_ENTRIES = parse_txt()
@@ -339,9 +376,7 @@ def txt_to_json() -> None:
     # write to json
     JSON_DIR.parent.mkdir(parents=True, exist_ok=True)
     with JSON_DIR.open("w", encoding="utf-8") as f:
-        json.dump(
-            {"entries": TWO_ENTRIES, "variants": SIX_VARIANTS, "geta": GETA, "ob": OB}, f, ensure_ascii=False, indent=2
-        )
+        f.write(custom_dump({"entries": TWO_ENTRIES, "variants": SIX_VARIANTS, "geta": GETA, "ob": OB}))
 
 
 def main():
