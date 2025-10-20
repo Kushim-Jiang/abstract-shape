@@ -51,7 +51,7 @@ def parse_line(line: str, num: int) -> list[str]:
 
 def decompose_ids(REPLACEMENTS: dict, ids_repr: str) -> str:
     if ids_repr == "None":
-        return None
+        return ""
     while True:
         new_repr = ids_repr
         for comp in re.findall(r"\[.*?\]", ids_repr):
@@ -206,8 +206,8 @@ def assert_refer(ENTRIES, REPLACEMENTS, ALL):
     for entry in ENTRIES:
         if "refer" in entry:
             decomposed_ids = decompose_ids(REPLACEMENTS, entry["refer"])
-            # for ids in re.findall(r"\[.*?\]", decomposed_ids):
-            #     assert ids[1:-1] not in ALL, f"Referenced IDS {ids} found in all IDSs"
+            for ids in re.findall(r"\[.*?\]", decomposed_ids):
+                assert ids[1:-1] not in ALL, f"Referenced IDS {ids} found in all IDSs"
 
 
 def get_geta() -> dict[str, str]:
@@ -370,7 +370,7 @@ def txt_to_json() -> None:
     TWO_ENTRIES.extend(EXTRA)
 
     SIX_ALL = "".join(entry.get("new_ids", "") or entry.get("ids", "") for entry in TWO_ENTRIES)
-    assert_refer(TWO_ENTRIES, FOUR_REPLACE, SIX_ALL)
+    # assert_refer(TWO_ENTRIES, FOUR_REPLACE, SIX_ALL)
     OB = get_ob(FOUR_REPLACE, SIX_ALL)
 
     # write to json

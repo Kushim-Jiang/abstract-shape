@@ -13,7 +13,8 @@ names_dict = {"main": "main", "ExtA": "a", "ExtB": "b", "ExtCI": "ci", "ExtGH": 
 def build_historical():
     for sheet_name, file in names_dict.items():
         result = ""
-        sheet: DataFrame = XLSX_FILE.get(sheet_name)
+        sheet = XLSX_FILE.get(sheet_name)
+        assert isinstance(sheet, DataFrame)
         if "his" in sheet.keys():
             data: DataFrame = sheet.loc[:, ["char", "his", "his.1"]]
             lines = data.to_csv(sep="\t", na_rep="").split("\n")
@@ -36,7 +37,8 @@ def build_historical():
 def build_now():
     for sheet_name, file in names_dict.items():
         result = ""
-        sheet: DataFrame = XLSX_FILE.get(sheet_name)
+        sheet = XLSX_FILE.get(sheet_name)
+        assert isinstance(sheet, DataFrame)
         data: DataFrame = sheet.loc[:, ["char.1", "con", "recon", "comm"]]
         lines = data.to_csv(sep="\t", na_rep="").split("\n")
 
@@ -57,7 +59,8 @@ def build_now():
 
 
 def build_geta():
-    sheet: DataFrame = XLSX_FILE.get("geta")
+    sheet = XLSX_FILE.get("geta")
+    assert isinstance(sheet, DataFrame)
 
     if sheet is not None:
         result = ""
@@ -70,7 +73,8 @@ def build_geta():
 
 
 def build_extra():
-    sheet: DataFrame = XLSX_FILE.get("extra")
+    sheet = XLSX_FILE.get("extra")
+    assert isinstance(sheet, DataFrame)
 
     if sheet is not None:
         result = ""
@@ -85,7 +89,8 @@ def build_extra():
 
 
 def build_ob():
-    sheet: DataFrame = XLSX_FILE.get("ob")
+    sheet = XLSX_FILE.get("ob")
+    assert isinstance(sheet, DataFrame)
 
     if sheet is not None:
         result = ""
@@ -104,15 +109,16 @@ def build_ob():
             except ValueError:
                 pass
 
-        with open(INPUT_DIR / f"ob.txt", "w", encoding="utf-8") as f:
+        with open(INPUT_DIR / "ob.txt", "w", encoding="utf-8") as f:
             f.write(result)
 
 
 def build_paper():
-    sheet: DataFrame = XLSX_FILE.get("paper")
+    sheet = XLSX_FILE.get("paper")
+    assert isinstance(sheet, DataFrame)
 
+    result = ""
     if sheet is not None:
-        result = ""
         for _, row in sheet.iterrows():
             result += f"{row.iloc[0]}\t{row.iloc[1]}\t{row.iloc[2]}\n"
             result = result.replace("nan", "")
