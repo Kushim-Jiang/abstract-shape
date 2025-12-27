@@ -1,4 +1,5 @@
 from __future__ import annotations
+from typing import Optional
 from anytree import NodeMixin
 
 IDC_ = str
@@ -52,6 +53,7 @@ class IDS(NodeMixin):
 
         if len(args) == 1 and isinstance(args[0], str):
             parsed = IDS.from_str(args[0])
+            assert parsed is not None
             self.operator = parsed.operator
             self.char = parsed.char
             self.note = ""
@@ -74,7 +76,7 @@ class IDS(NodeMixin):
             raise ValueError("Invalid IDS initialization")
 
     @staticmethod
-    def from_str(ids: str) -> IDS:
+    def from_str(ids: str) -> Optional[IDS]:
         if not ids:
             return None
 
@@ -128,6 +130,8 @@ class IDS(NodeMixin):
                     return prefix(node.char)
                 else:
                     return str(node.operator) + "".join(prefix(child) for child in node.children)
+            else:
+                return ""
 
         return prefix(self)
 
