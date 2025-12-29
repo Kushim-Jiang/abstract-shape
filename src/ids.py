@@ -22,7 +22,8 @@ class IDC:
     XX = "⿻"
     MI = "⿾"
     RO = "⿿"
-    ALL = {LR, LL, UD, UU, RD, RU, LD, LU, OD, OR, OU, OL, OC, XX, MI, RO}
+    VA = "〾"
+    ALL = {LR, LL, UD, UU, RD, RU, LD, LU, OD, OR, OU, OL, OC, XX, MI, RO, VA}
 
     @classmethod
     def arity(cls, idc: IDC_) -> int:
@@ -30,7 +31,7 @@ class IDC:
             return 2
         elif idc in (cls.LL, cls.UU):
             return 3
-        elif idc in (cls.MI, cls.RO):
+        elif idc in (cls.MI, cls.RO, cls.VA):
             return 1
         else:
             raise ValueError(f"Unknown IDC: {idc}")
