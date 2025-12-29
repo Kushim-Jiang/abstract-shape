@@ -1,14 +1,15 @@
-from collections import deque
 import json
 import re
+from collections import deque
+from datetime import datetime
 from pathlib import Path
 
 from ids import IDS
 
-
 REPO_DIR = Path(__file__).parent.parent
 TXT_DIR = REPO_DIR / "input"
 JSON_DIR = REPO_DIR.parent / "kushim-jiang.github.io" / "assets" / "abstract.json"
+STAT_FILE = REPO_DIR / "result" / "statistics.tsv"
 
 
 FILE_NAMES = ["main", "a", "b", "ci", "gh"]
@@ -377,6 +378,21 @@ def txt_to_json() -> None:
     JSON_DIR.parent.mkdir(parents=True, exist_ok=True)
     with JSON_DIR.open("w", encoding="utf-8") as f:
         f.write(custom_dump({"entries": TWO_ENTRIES, "shapes": SIX_VARIANTS, "shape_count": len(SIX_VARIANTS), "geta": GETA, "ob": OB}))
+
+    # write to statistics
+    STAT_FILE.parent.mkdir(parents=True, exist_ok=True)
+    today = datetime.now().strftime("%Y-%m-%d")
+    shape_count = len(SIX_VARIANTS)
+    lines = []
+    if STAT_FILE.exists():
+        with STAT_FILE.open("r", encoding="utf-8") as f:
+            lines = [line.strip() for line in f.readlines() if line.strip()]
+    if lines and lines[-1].startswith(today):
+        lines[-1] = f"{today}\t{shape_count}"
+    else:
+        lines.append(f"{today}\t{shape_count}")
+    with STAT_FILE.open("w", encoding="utf-8") as f:
+        f.write("\n".join(lines))
 
 
 def main():
