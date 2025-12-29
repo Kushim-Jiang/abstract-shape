@@ -376,7 +376,7 @@ def txt_to_json() -> None:
     # write to json
     JSON_DIR.parent.mkdir(parents=True, exist_ok=True)
     with JSON_DIR.open("w", encoding="utf-8") as f:
-        f.write(custom_dump({"entries": TWO_ENTRIES, "variants": SIX_VARIANTS, "geta": GETA, "ob": OB}))
+        f.write(custom_dump({"entries": TWO_ENTRIES, "shapes": SIX_VARIANTS, "shape_count": len(SIX_VARIANTS), "geta": GETA, "ob": OB}))
 
 
 def main():
