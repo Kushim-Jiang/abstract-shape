@@ -400,4 +400,11 @@ def main():
 
 
 if __name__ == "__main__":
+    from build_txt import main as build_txt_main
+    from datetime import datetime
+
+    begin = datetime.now()
+    build_txt_main()
     main()
+    end = datetime.now()
+    print(f"Time cost: {end - begin}")
