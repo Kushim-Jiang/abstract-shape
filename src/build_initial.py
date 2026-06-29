@@ -3,11 +3,11 @@ import re
 
 import yaml
 
-ids_filter = (
-    r"[-#\(\)\*\,\.\:\;\?\[\]\{\}\^_>0123456789abBcdDfghHijJKlMnNpPqQrsStTuUvVwWxyzZ]"
-)
+ids_filter = r"[-#\(\)\*\,\.\:\;\?\[\]\{\}\^_>0123456789abBcdDfghHijJKlMnNpPqQrsStTuUvVwWxyzZ]"
 cog_filter = r"[\(\)\*？\{\}⇄↻☷⿰⿱⿳⿸0234ABcCgHNoXZ]"
-shape_filter = r"[-#\(\)\*\,\.\:\;\?\[\]\^_\{\}>↔↷⿰⿱⿲⿳⿴⿵⿶⿷⿸⿹⿺⿻012〢3〣456789abBcdDfghHijJKlMnNpPqQrsStTuUvVwWxyzZ]"
+shape_filter = (
+    r"[-#\(\)\*\,\.\:\;\?\[\]\^_\{\}>↔↷⿰⿱⿲⿳⿴⿵⿶⿷⿸⿹⿺⿻012〢3〣456789abBcdDfghHijJKlMnNpPqQrsStTuUvVwWxyzZ]"
+)
 
 
 def _load(path: str):
@@ -18,11 +18,10 @@ def _load(path: str):
 def _merge(dict_1: dict, dict_2: dict):
     res = {}
     for key in dict_1.keys() | dict_2.keys():
-        res[key] = (
-            ("" if key not in dict_1.keys() else dict_1.get(key))
-            + ("; " if key in dict_1.keys() & dict_2.keys() else "")
-            + ("" if key not in dict_2.keys() else dict_2.get(key))
-        )
+        v1 = dict_1.get(key) or ""
+        v2 = dict_2.get(key) or ""
+        sep = "; " if key in dict_1.keys() & dict_2.keys() else ""
+        res[key] = v1 + sep + v2
     return res
 
 
@@ -74,9 +73,7 @@ class InitialBuilder:
                     list_single_ids = []
                     for idses in idses:
                         list_single_ids += idses.split(";")
-                    ids_dict[char] = [
-                        re.sub(ids_filter, "", i) for i in list_single_ids
-                    ]
+                    ids_dict[char] = [re.sub(ids_filter, "", i) for i in list_single_ids]
                     line = f_ids.readline().strip()
 
         # dump yaml
@@ -168,7 +165,7 @@ class InitialBuilder:
 
         uni_dict = _merge(_load("data/unify_eiso.yaml"), _load("data/similar_fei.yaml"))
         amb_dict = _load("data/ambiguous.yaml")
-        ass_reference = self.build_reference_ass(
+        self.build_reference_ass(
             ids_dict,
             cog_dict,
             uni_dict,

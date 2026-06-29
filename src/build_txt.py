@@ -2,7 +2,6 @@ from pathlib import Path
 
 from pandas import DataFrame, read_excel
 
-
 INPUT_DIR = Path(__file__).parent.parent / "input"
 XLSX_DIR = INPUT_DIR / "abstract_shape.xlsx"
 XLSX_FILE = read_excel(io=XLSX_DIR, sheet_name=None)

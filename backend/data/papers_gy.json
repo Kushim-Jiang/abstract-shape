@@ -1,0 +1,632 @@
+[
+  {
+    "type": "專著",
+    "author": "蔡夢麒",
+    "year": "2007",
+    "title": "廣韻校釋",
+    "publisher": "嶽麓書社",
+    "note": "",
+    "status": ""
+  },
+  {
+    "type": "專著",
+    "author": "蔡夢麒",
+    "year": "2007",
+    "title": "《說文解字》字音注釋研究",
+    "publisher": "齊魯書社",
+    "note": "",
+    "status": ""
+  },
+  {
+    "type": "專著",
+    "author": "蔡夢麒、夏能權",
+    "year": "2014",
+    "title": "《王韻》《廣韻》反切注音比較研究",
+    "publisher": "商務印書館",
+    "note": "",
+    "status": ""
+  },
+  {
+    "type": "論文",
+    "author": "蔡欣然、蔡夢麒",
+    "year": "2023",
+    "title": "試說《新撰字鏡》漢字注音研究的意義",
+    "publisher": "語文研究（2023年第2期）",
+    "note": "",
+    "status": ""
+  },
+  {
+    "type": "專著",
+    "author": "鄧福祿、韓小荊",
+    "year": "2007",
+    "title": "字典考正",
+    "publisher": "湖北人民出版社",
+    "note": "",
+    "status": ""
+  },
+  {
+    "type": "專著",
+    "author": "范祥雍",
+    "year": "2011",
+    "title": "《廣韻》三家校勘記補釋",
+    "publisher": "上海古籍出版社",
+    "note": "",
+    "status": ""
+  },
+  {
+    "type": "論文",
+    "author": "葛信益",
+    "year": "1984",
+    "title": "《廣韻》訛奪舉正（增定稿）",
+    "publisher": "音韻學研究（第一輯）",
+    "note": "又收入氏著《廣韻叢考》，北京師範大學出版社，1993年。",
+    "status": "√"
+  },
+  {
+    "type": "論文",
+    "author": "葛信益",
+    "year": "1984",
+    "title": "張氏澤存堂本《廣韵》异讀字形訛舉例",
+    "publisher": "中國語文（1984年第4期）",
+    "note": "又收入氏著《廣韻叢考》，北京師範大學出版社，1993年。",
+    "status": "√"
+  },
+  {
+    "type": "論文",
+    "author": "葛信益",
+    "year": "1985",
+    "title": "《廣韻》異讀字釋例",
+    "publisher": "語言研究（1985年第2期）",
+    "note": "又收入氏著《廣韻叢考》，北京師範大學出版社，1993年。",
+    "status": ""
+  },
+  {
+    "type": "論文",
+    "author": "葛信益",
+    "year": "1985",
+    "title": "《廣韻》異讀字有兩體皆聲者",
+    "publisher": "中國語文（1985年第1期）",
+    "note": "又收入氏著《廣韻叢考》，北京師範大學出版社，1993年。",
+    "status": ""
+  },
+  {
+    "type": "專著",
+    "author": "葛信益",
+    "year": "1993",
+    "title": "廣韻叢考",
+    "publisher": "北京師範大學出版社",
+    "note": "",
+    "status": "√x"
+  },
+  {
+    "type": "論文",
+    "author": "古屋昭弘",
+    "year": "2014",
+    "title": "《切韻》增補作業における王仁昫失誤の可能性",
+    "publisher": "中國文學研究（第40期）",
+    "note": "又載《語言之旅：竺家寧先生七秩壽慶論文集》，五南圖書出版股份有限公司，2015年",
+    "status": "√"
+  },
+  {
+    "type": "論文",
+    "author": "古屋昭弘",
+    "year": "2020",
+    "title": "王仁昫《切韵》與顧野王《玉篇》",
+    "publisher": "漢語史學報（第23輯）",
+    "note": "",
+    "status": "√"
+  },
+  {
+    "type": "專著",
+    "author": "胡吉宣",
+    "year": "1989",
+    "title": "玉篇校釋",
+    "publisher": "上海古籍出版社",
+    "note": "",
+    "status": ""
+  },
+  {
+    "type": "論文",
+    "author": "冀小軍",
+    "year": "2009",
+    "title": "讀《篆隸萬象名義》校釋劄記",
+    "publisher": "語言論集",
+    "note": "又載復旦大學出土文獻與古文字研究中心網站，發佈日期：2017年1月17日，網址：http://www.fdgwz.org.cn/Web/Show/2973。",
+    "status": ""
+  },
+  {
+    "type": "專著",
+    "author": "金理新",
+    "year": "2013",
+    "title": "上古音略",
+    "publisher": "黃山書社",
+    "note": "",
+    "status": ""
+  },
+  {
+    "type": "專著",
+    "author": "金理新",
+    "year": "2023",
+    "title": "上古音略（修訂本）",
+    "publisher": "上海教育出版社",
+    "note": "",
+    "status": ""
+  },
+  {
+    "type": "專著",
+    "author": "李春桃",
+    "year": "2016",
+    "title": "古文異體關係整理與研究",
+    "publisher": "中華書局",
+    "note": "",
+    "status": ""
+  },
+  {
+    "type": "論文",
+    "author": "梁春勝",
+    "year": "2009",
+    "title": "字書疑難字考釋拾遺",
+    "publisher": "漢語史學報（第9輯）",
+    "note": "",
+    "status": "√"
+  },
+  {
+    "type": "論文",
+    "author": "梁慧婧",
+    "year": "2020",
+    "title": "《說文解字》明母與其他鼻音的特殊諧聲考辨",
+    "publisher": "現代語文（2020年第9期）",
+    "note": "",
+    "status": ""
+  },
+  {
+    "type": "專著",
+    "author": "林源",
+    "year": "2001",
+    "title": "《通俗文》研究",
+    "publisher": "上海師範大學碩士學位論文（指導教師：徐時儀）",
+    "note": "",
+    "status": ""
+  },
+  {
+    "type": "論文",
+    "author": "柳建鈺、羅薇",
+    "year": "2014",
+    "title": "《漢語大字典》第二版疑難字考辨",
+    "publisher": "寧夏大學學報（人文社會科學版）（2014年第5期）",
+    "note": "",
+    "status": "√"
+  },
+  {
+    "type": "專著",
+    "author": "龍宇純",
+    "year": "1968",
+    "title": "唐寫全本王仁昫刊謬補缺《切韻》校箋",
+    "publisher": "香港中文大學",
+    "note": "",
+    "status": ""
+  },
+  {
+    "type": "專著",
+    "author": "龍宇純",
+    "year": "2015",
+    "title": "龍宇純全集·廣韻校記",
+    "publisher": "秀威經典",
+    "note": "",
+    "status": ""
+  },
+  {
+    "type": "專著",
+    "author": "龍宇純",
+    "year": "2015",
+    "title": "龍宇純全集·說文讀記",
+    "publisher": "秀威經典",
+    "note": "",
+    "status": ""
+  },
+  {
+    "type": "專著",
+    "author": "龍宇純",
+    "year": "2015",
+    "title": "龍宇純全集·中上古漢語音韻論文集",
+    "publisher": "秀威經典",
+    "note": "",
+    "status": ""
+  },
+  {
+    "type": "專著",
+    "author": "陸志韋",
+    "year": "1999",
+    "title": "陸志韋語言學著作集（一）",
+    "publisher": "中華書局",
+    "note": "",
+    "status": ""
+  },
+  {
+    "type": "專著",
+    "author": "陸志韋",
+    "year": "1999",
+    "title": "陸志韋語言學著作集（二）",
+    "publisher": "中華書局",
+    "note": "",
+    "status": ""
+  },
+  {
+    "type": "專著",
+    "author": "呂浩",
+    "year": "2007",
+    "title": "《篆隸萬象名義》校釋",
+    "publisher": "學林出版社",
+    "note": "",
+    "status": ""
+  },
+  {
+    "type": "專著",
+    "author": "沈兼士",
+    "year": "1985",
+    "title": "廣韻聲系",
+    "publisher": "中華書局",
+    "note": "此書在1945年初版。",
+    "status": ""
+  },
+  {
+    "type": "論文",
+    "author": "沈兼士",
+    "year": "1947;1986",
+    "title": "漢魏注音中義同換讀例發凡",
+    "publisher": "原載《益世報·人文周刊》新1期，1947年；收入氏著《沈兼士學術論文集》，中華書局，1986年。",
+    "note": "",
+    "status": ""
+  },
+  {
+    "type": "專著",
+    "author": "孫磊",
+    "year": "2023",
+    "title": "《王三》唇音字諧聲研究",
+    "publisher": "安徽大學碩士學位論文（指導教師：王曦）",
+    "note": "",
+    "status": ""
+  },
+  {
+    "type": "論文",
+    "author": "孫玉文",
+    "year": "2013",
+    "title": "談大型漢語辭典古代異讀字字音選擇",
+    "publisher": "蘇州大學學報（哲學社會科學版）（2013年第5期）",
+    "note": "",
+    "status": ""
+  },
+  {
+    "type": "專著",
+    "author": "孫玉文",
+    "year": "2015",
+    "title": "上古音論叢",
+    "publisher": "北京大學出版社",
+    "note": "",
+    "status": ""
+  },
+  {
+    "type": "專著",
+    "author": "孫玉文",
+    "year": "2020",
+    "title": "字學咀華集",
+    "publisher": "北京大學出版社",
+    "note": "",
+    "status": ""
+  },
+  {
+    "type": "論文",
+    "author": "太田齋",
+    "year": "2023",
+    "title": "關於《玄應音義》的音系性質和特點",
+    "publisher": "辭書研究（2023年）第3期",
+    "note": "",
+    "status": ""
+  },
+  {
+    "type": "論文",
+    "author": "陶曲勇、游帥",
+    "year": "2022",
+    "title": "《篆隸萬象名義》校讀三則",
+    "publisher": "勵耘語言學刊（2022年第2輯）",
+    "note": "",
+    "status": "√"
+  },
+  {
+    "type": "論文",
+    "author": "王建",
+    "year": "2018",
+    "title": "韻書“膘”字反切勘誤",
+    "publisher": "古籍研究（2018年第2期）",
+    "note": "",
+    "status": "√"
+  },
+  {
+    "type": "專著",
+    "author": "熊加全",
+    "year": "2013",
+    "title": "《玉篇》疑難字研究",
+    "publisher": "河北大學博士學位論文（指導教師：楊寶忠）",
+    "note": "",
+    "status": ""
+  },
+  {
+    "type": "專著",
+    "author": "熊加全",
+    "year": "2020",
+    "title": "《玉篇》疑難字考釋與研究",
+    "publisher": "中華書局",
+    "note": "",
+    "status": ""
+  },
+  {
+    "type": "專著",
+    "author": "楊寶忠",
+    "year": "2005",
+    "title": "疑難字考釋與研究",
+    "publisher": "中華書局",
+    "note": "",
+    "status": "√"
+  },
+  {
+    "type": "論文",
+    "author": "楊寶忠",
+    "year": "2008",
+    "title": "疑難字續考",
+    "publisher": "燕趙學術（2008年第2期）",
+    "note": "",
+    "status": "√"
+  },
+  {
+    "type": "論文",
+    "author": "楊寶忠",
+    "year": "2009",
+    "title": "疑難字續考",
+    "publisher": "勵耘學刊（語言卷）（2009年第2期）",
+    "note": "",
+    "status": ""
+  },
+  {
+    "type": "專著",
+    "author": "楊寶忠",
+    "year": "2011",
+    "title": "疑難字續考",
+    "publisher": "中華書局",
+    "note": "",
+    "status": "√"
+  },
+  {
+    "type": "專著",
+    "author": "楊寶忠",
+    "year": "2018",
+    "title": "疑難字三考",
+    "publisher": "中華書局",
+    "note": "",
+    "status": "√"
+  },
+  {
+    "type": "論文",
+    "author": "楊寶忠",
+    "year": "2018",
+    "title": "疑難字的負面影響",
+    "publisher": "近代漢字研究（第1輯），河北大學出版社",
+    "note": "",
+    "status": ""
+  },
+  {
+    "type": "論文",
+    "author": "楊寶忠",
+    "year": "2019",
+    "title": "談談近代漢字的特殊變易",
+    "publisher": "中國語文（2019年第5期）",
+    "note": "",
+    "status": ""
+  },
+  {
+    "type": "論文",
+    "author": "楊寶忠",
+    "year": "2020",
+    "title": "大型字書土部疑難字新考",
+    "publisher": "近代漢字研究（第2輯），河北大學出版社",
+    "note": "",
+    "status": ""
+  },
+  {
+    "type": "論文",
+    "author": "楊寶忠、楊清臣",
+    "year": "2010",
+    "title": "疑難字續考（十則）",
+    "publisher": "中國文字研究（第十三輯）",
+    "note": "",
+    "status": ""
+  },
+  {
+    "type": "專著",
+    "author": "楊軍",
+    "year": "2007",
+    "title": "韻鏡校箋",
+    "publisher": "浙江大學出版社",
+    "note": "",
+    "status": ""
+  },
+  {
+    "type": "專著",
+    "author": "殷可",
+    "year": "2022",
+    "title": "《博雅音》校勘辨正",
+    "publisher": "浙江大學碩士學位論文（指導教師：姚永銘）",
+    "note": "",
+    "status": ""
+  },
+  {
+    "type": "論文",
+    "author": "余迺永",
+    "year": "2003",
+    "title": "《切韻》系書切音與切字諧聲相違的聲母問題",
+    "publisher": "語言科學（2003年第5期）",
+    "note": "",
+    "status": ""
+  },
+  {
+    "type": "專著",
+    "author": "余迺永",
+    "year": "2008",
+    "title": "新校互注宋本《廣韻》（定稿本）",
+    "publisher": "上海人民出版社",
+    "note": "",
+    "status": ""
+  },
+  {
+    "type": "專著",
+    "author": "張磊",
+    "year": "2012",
+    "title": "《新撰字鏡》研究",
+    "publisher": "中國社會科學出版社",
+    "note": "",
+    "status": ""
+  },
+  {
+    "type": "專著",
+    "author": "張涌泉",
+    "year": "2000",
+    "title": "漢語俗字叢考",
+    "publisher": "中華書局",
+    "note": "",
+    "status": ""
+  },
+  {
+    "type": "專著",
+    "author": "張涌泉等",
+    "year": "2008",
+    "title": "敦煌經部文獻合集",
+    "publisher": "中華書局",
+    "note": "",
+    "status": ""
+  },
+  {
+    "type": "專著",
+    "author": "趙少咸",
+    "year": "2010",
+    "title": "廣韻疏證",
+    "publisher": "巴蜀書社",
+    "note": "",
+    "status": ""
+  },
+  {
+    "type": "專著",
+    "author": "趙英達",
+    "year": "2023",
+    "title": "《切韻》系韻書校補",
+    "publisher": "南京師範大學碩士學位論文（指導教師：吳波）",
+    "note": "",
+    "status": "√"
+  },
+  {
+    "type": "論文",
+    "author": "趙庸",
+    "year": "2020",
+    "title": "《廣韻》疑難讀音考釋六則",
+    "publisher": "漢語史研究集刊（第29輯）",
+    "note": "",
+    "status": "√"
+  },
+  {
+    "type": "專著",
+    "author": "鄭妞",
+    "year": "2012",
+    "title": "上古牙喉音特殊諧聲關係研究",
+    "publisher": "北京大學博士學位論文（指導教師：孫玉文）",
+    "note": "",
+    "status": ""
+  },
+  {
+    "type": "專著",
+    "author": "鄭妞",
+    "year": "2021",
+    "title": "上古牙喉音特殊諧聲關係研究",
+    "publisher": "北京大學出版社",
+    "note": "",
+    "status": ""
+  },
+  {
+    "type": "論文",
+    "author": "鄭張尚芳",
+    "year": "2002",
+    "title": "漢語方言異常音讀的分層及滯古層次分析",
+    "publisher": "南北是非：漢語方言的差異與變化",
+    "note": "《第三屆國際漢學會議論文集·語言組》，臺灣中央研究院語言學所，2002年；收入氏著《鄭張尚芳語言學論集》，中華書局，2012年。",
+    "status": ""
+  },
+  {
+    "type": "專著",
+    "author": "周祖謨",
+    "year": "2011",
+    "title": "廣韻校本",
+    "publisher": "中華書局",
+    "note": "",
+    "status": ""
+  },
+  {
+    "type": "專著",
+    "author": "周祖庠",
+    "year": "1994",
+    "title": "切韻韻圖",
+    "publisher": "貴州教育出版社",
+    "note": "",
+    "status": ""
+  },
+  {
+    "type": "專著",
+    "author": "齊曉燕",
+    "year": "2021",
+    "title": "上古音歌月元三部的共時相通及歷時演變研究",
+    "publisher": "華中科技大學出版社",
+    "note": "",
+    "status": ""
+  },
+  {
+    "type": "論文",
+    "author": "吳承仕",
+    "year": "1924;1985",
+    "title": "經籍舊音辯證",
+    "publisher": "收入《吳檢齋遺書：經籍舊音序錄  經籍舊音辯證》，中華書局，1985年。",
+    "note": "",
+    "status": ""
+  },
+  {
+    "type": "專著",
+    "author": "真大成",
+    "year": "2020",
+    "title": "中古文獻異文的語言學考察：以文字、詞語爲中心",
+    "publisher": "上海教育出版社",
+    "note": "",
+    "status": ""
+  },
+  {
+    "type": "專著",
+    "author": "張大勇",
+    "year": "2011",
+    "title": "廣韻異讀字研究",
+    "publisher": "北京師範大學博士學位論文，指導教師：李國英",
+    "note": "",
+    "status": ""
+  },
+  {
+    "type": "論文",
+    "author": "張磊",
+    "year": "2012",
+    "title": "說“𣳤”",
+    "publisher": "《文史》2012年第1輯",
+    "note": "",
+    "status": ""
+  },
+  {
+    "type": "論文",
+    "author": "湯炳正",
+    "year": "1936/2015",
+    "title": "《廣韻》訂補敘例",
+    "publisher": "《制言》第21期；收入《語言之起源（增補本）》，三晉出版社，2015年",
+    "note": "",
+    "status": ""
+  }
+]
