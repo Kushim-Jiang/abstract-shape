@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>抽构标注管理</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app">
+  <header class="main-header">
+    <div class="header-row">
+      <span class="site-title">抽构标注管理</span>
+      <nav class="header-nav">
+        <button class="nav-btn" data-view="annotate">标注</button>
+        <button class="nav-btn active" data-view="chars">广义汉字</button>
+        <button class="nav-btn" data-view="browse-ob">甲骨文</button>
+        <button class="nav-btn" data-view="papers">参考文献</button>
+        <button class="nav-btn" data-view="extra">未编码字</button>
+      </nav>
+      <button id="theme-toggle" class="icon-btn" title="切换主题">☀️</button>
+    </div>
+  </header>
+  </nav>
+
+  <main>
+    <!-- ═══ 广义汉字视图（查询列表） ═══ -->
+    <div id="view-chars" class="view active">
+      <div class="toolbar">
+        <input type="text" id="char-search" placeholder="搜索字符…">
+        <button id="char-search-btn" class="btn-primary">搜索</button>
+        <button id="first-unanno-btn" class="btn-accent">▶ 第一个未标</button>
+        <span id="char-count" class="badge"></span>
+      </div>
+      <div id="char-list" class="char-grid"></div>
+      <div id="char-pagination" class="pagination"></div>
+    </div>
+
+    <!-- ═══ 标注视图（汉字/甲骨文详情编辑 + 参考资料） ═══ -->
+    <div id="view-annotate" class="view">
+      <div class="anno-toolbar">
+        <button id="anno-prev-btn" class="btn-nav" title="上一字">◀</button>
+        <span id="anno-char-label"></span>
+        <button id="anno-next-btn" class="btn-nav" title="下一字">▶</button>
+      </div>
+      <div id="detail-body" class="anno-body"></div>
+    </div>
+
+    <!-- ═══ 甲骨文视图（查询列表） ═══ -->
+    <div id="view-browse-ob" class="view">
+      <div class="toolbar">
+        <input type="text" id="ob-search" placeholder="搜索甲骨文字形…">
+        <button id="ob-search-btn" class="btn-primary">搜索</button>
+        <span id="ob-count" class="badge"></span>
+      </div>
+      <div id="ob-list" class="char-grid"></div>
+      <div id="ob-pagination" class="pagination"></div>
+    </div>
+
+    <div id="view-papers" class="view">
+      <div class="toolbar">
+        <input type="text" id="paper-search" placeholder="搜索参考文献…">
+        <span id="paper-count" class="badge"></span>
+      </div>
+      <div id="paper-list"></div>
+    </div>
+
+    <div id="view-extra" class="view">
+      <div class="toolbar">
+        <h3>未编码字</h3>
+        <button id="extra-add-btn" class="btn-primary">+ 新增</button>
+      </div>
+      <div id="extra-list"></div>
+    </div>
+  </main>
+
+  <!-- 新增未编码字弹窗 -->
+  <div id="extra-add-overlay" class="overlay" style="display:none">
+    <div class="overlay-content">
+      <button class="close-btn" id="extra-add-close">&times;</button>
+      <h3>新增未编码字</h3>
+      <form id="extra-form">
+        <label>抽构 (con)</label>
+        <input type="text" id="extra-con">
+        <label>参考抽构 (ref)</label>
+        <input type="text" id="extra-ref">
+        <label>注释 (comm)</label>
+        <textarea id="extra-comm" rows="3"></textarea>
+        <button type="submit" class="btn-primary">保存</button>
+      </form>
+    </div>
+  </div>
+</div>
+<script src="app.js"></script>
+</body>
+</html>
