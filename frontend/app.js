@@ -146,6 +146,10 @@ document.getElementById("first-unanno-btn").addEventListener("click", async func
 // ═══════════════════════════════════════════════════════════
 
 var _currentDetailChar = null;var _currentDetailType = "char"; // "char" | "ob"
+var _batchMode = false; // 标注视图是否处于批量编辑模式
+var _batchResults = [];
+var _batchCurrentIdx = -1; // 当前在批量结果列表中的索引
+
 async function showCharDetail(char) {
   _currentDetailChar = char;
   _currentDetailType = "char";
@@ -156,6 +160,12 @@ async function showCharDetail(char) {
   document.querySelector('[data-view="annotate"]').classList.add("active");
 
   document.getElementById("anno-char-label").textContent = char;
+  _batchMode = false;
+  _batchResults = [];
+  _batchCurrentIdx = -1;
+  document.getElementById("batch-panel").style.display = "none";
+  document.getElementById("anno-batch-btn").classList.remove("active");
+  document.getElementById("detail-body").classList.remove("batch-active");
 
   // 确保参考文献已加载
   if (!state.papers || !state.papers.length) {
@@ -187,15 +197,60 @@ async function showCharDetail(char) {
 
   // 初始化参考文献筛选
   filterRefs();
+
+  // 记录当前 IDS，便于批量编辑时自动填入默认部件
+  state.currentIds = xref.ids || [];
 }
 
-// 上一字 / 下一字
+// 批量编辑入口：在标注视图内切换批量模式
+document.getElementById("anno-batch-btn").addEventListener("click", function() {
+  _batchMode = !_batchMode;
+  var btn = document.getElementById("anno-batch-btn");
+  var panel = document.getElementById("batch-panel");
+  var body = document.getElementById("detail-body");
+  if (_batchMode) {
+    btn.classList.add("active");
+    panel.style.display = "block";
+    body.classList.add("batch-active");
+    // 如果有当前字符，尝试从 IDS 自动提取一个默认部件
+    var defaultComponent = "";
+    if (state.currentIds && state.currentIds.length) {
+      // 简单取 IDS 中的最后一个非 IDS 操作符字符
+      var ids = state.currentIds[0];
+      for (var i = ids.length - 1; i >= 0; i--) {
+        var c = ids[i];
+        if (c.charCodeAt(0) > 0x2F && !/^[⿰-⿻\{\}\[\]\(\)\.a-zA-Z0-9]$/.test(c)) {
+          defaultComponent = c;
+          break;
+        }
+      }
+    }
+    document.getElementById("batch-component").value = defaultComponent;
+    loadBatchEdit();
+  } else {
+    btn.classList.remove("active");
+    panel.style.display = "none";
+    body.classList.remove("batch-active");
+    // 退出批量模式，恢复当前字符的普通标注视图
+    if (_currentDetailChar) showCharDetail(_currentDetailChar);
+  }
+});
+
+// 上一字 / 下一字（支持批量模式导航）
 document.getElementById("anno-prev-btn").addEventListener("click", function() {
   if (_currentDetailType === "ob") return;
+  if (_batchMode && _batchCurrentIdx > 0) {
+    showBatchCharDetail(_batchCurrentIdx - 1);
+    return;
+  }
   if (state.neighbors && state.neighbors.prev) showCharDetail(state.neighbors.prev);
 });
 document.getElementById("anno-next-btn").addEventListener("click", function() {
   if (_currentDetailType === "ob") return;
+  if (_batchMode && _batchCurrentIdx < _batchResults.length - 1) {
+    showBatchCharDetail(_batchCurrentIdx + 1);
+    return;
+  }
   if (state.neighbors && state.neighbors.next) showCharDetail(state.neighbors.next);
 });
 
@@ -698,6 +753,149 @@ function renderPagination(containerId, total, limit, offset, onClick) {
     });
   });
 }
+
+// ═══════════════════════════════════════════════════════════
+//  批量编辑抽构（双栏布局，与标注界面一致）
+// ═══════════════════════════════════════════════════════════
+
+async function loadBatchEdit() {
+  const component = document.getElementById("batch-component").value.trim();
+  if (!component) {
+    document.getElementById("batch-char-strip").innerHTML = '';
+    document.getElementById("detail-body").innerHTML = '<div class="empty">请输入部件字进行搜索</div>';
+    document.getElementById("batch-count").textContent = "0 条";
+    document.getElementById("batch-save-all").style.display = "none";
+    _batchResults = [];
+    _batchCurrentIdx = -1;
+    return;
+  }
+  const data = await api("/characters/search-by-ids-component?component=" + encodeURIComponent(component) + "&limit=500");
+  _batchResults = data.results || [];
+  _batchCurrentIdx = -1;
+  document.getElementById("batch-count").textContent = data.total + " 条";
+  document.getElementById("batch-save-all").style.display = _batchResults.length ? "" : "none";
+  renderBatchCharStrip();
+  // 默认选中第一个
+  if (_batchResults.length) {
+    showBatchCharDetail(0);
+  } else {
+    document.getElementById("detail-body").innerHTML = '<div class="empty">未找到包含该部件的字符</div>';
+  }
+}
+
+function renderBatchCharStrip() {
+  const strip = document.getElementById("batch-char-strip");
+  strip.innerHTML = _batchResults.map(function(item, idx) {
+    var annos = item.annotations || [];
+    var hasCon = annos.some(function(a) { return a.con; });
+    var firstCon = (annos[0] && annos[0].con) || '';
+    return '<span class="batch-strip-item' + (idx === _batchCurrentIdx ? ' active' : '') + (hasCon ? ' has-anno' : '') + '" data-idx="' + idx + '" onclick="showBatchCharDetail(' + idx + ')" title="' + esc(firstCon) + '">'
+      + item.char
+      + (firstCon ? '<span class="strip-con-hint">' + esc(firstCon.substring(0, 8)) + '</span>' : '')
+      + '</span>';
+  }).join("");
+  // 滚动到选中项
+  var active = strip.querySelector('.active');
+  if (active) active.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+}
+
+async function showBatchCharDetail(idx) {
+  if (idx < 0 || idx >= _batchResults.length) return;
+  _batchCurrentIdx = idx;
+  _currentDetailChar = _batchResults[idx].char;
+  renderBatchCharStrip();
+
+  var char = _batchResults[idx].char;
+
+  // 获取字符数据和交叉引用（同普通标注视图）
+  var [data, xref] = await Promise.all([
+    api("/characters/" + encodeURIComponent(char)),
+    api("/characters/" + encodeURIComponent(char) + "/cross-refs"),
+  ]);
+
+  // 确保参考文献已加载
+  if (!state.papers || !state.papers.length) {
+    var pp = await api("/papers");
+    state.papers = pp.papers || [];
+  }
+  if (!state.gyPapers) {
+    var gp = await api("/gy/references");
+    state.gyPapers = gp.references || [];
+  }
+
+  document.getElementById("anno-char-label").textContent = char;
+
+  // 更新导航按钮状态（批量模式下用批次索引导航）
+  document.getElementById("anno-prev-btn").style.display = idx > 0 ? "" : "none";
+  document.getElementById("anno-next-btn").style.display = idx < _batchResults.length - 1 ? "" : "none";
+
+  // 使用与普通标注完全相同的 renderDetailLeft + renderDetailRight
+  var annos = data.annotations || [];
+  var body = document.getElementById("detail-body");
+  body.innerHTML = '<div class="detail-cols">'
+    + renderDetailLeft(char, data, annos)
+    + renderDetailRight(char, xref)
+    + '</div>';
+
+  // 初始化参考文献筛选
+  filterRefs();
+}
+
+function refreshBatchCharStrip() {
+  renderBatchCharStrip();
+}
+
+// ─── 批量保存全部 ─────────────────────────────────────
+
+async function saveBatchEdit() {
+  var items = [];
+  for (var idx = 0; idx < _batchResults.length; idx++) {
+    var item = _batchResults[idx];
+    var char = item.char;
+    var annos = item.annotations || [];
+
+    // 对当前可见的字符，从输入框取值（可能含未保存的修改）
+    if (idx === _batchCurrentIdx) {
+      var con = (document.getElementById("edit-con-0") || {}).value || (annos[0] && annos[0].con) || '';
+      var ref = (document.getElementById("edit-ref-0") || {}).value || (annos[0] && annos[0].ref) || '';
+      var comm = (document.getElementById("edit-comm-0") || {}).value || (annos[0] && annos[0].comm) || '';
+      items.push({ char: char, con: con, ref: ref, comm: comm });
+    } else {
+      // 其他字符从内存数据取
+      if (annos.length) {
+        items.push({ char: char, con: annos[0].con || '', ref: annos[0].ref || '', comm: annos[0].comm || '' });
+      } else {
+        items.push({ char: char, con: '', ref: '', comm: '' });
+      }
+    }
+  }
+
+  if (items.length) {
+    var result = await apiPost("/characters/batch-annotate", { items: items });
+    alert("保存完成！成功更新 " + result.updated + " 个字符" + (result.errors && result.errors.length ? "，失败 " + result.errors.length + " 个" : ""));
+  }
+
+  // 刷新所有字符数据
+  for (var j = 0; j < _batchResults.length; j++) {
+    var d = await api("/characters/" + encodeURIComponent(_batchResults[j].char));
+    _batchResults[j].annotations = d.annotations;
+  }
+  renderBatchCharStrip();
+  if (_batchCurrentIdx >= 0) showBatchCharDetail(_batchCurrentIdx);
+  loadChars();
+}
+
+// ─── 事件绑定 ──────────────────────────────────────────
+
+document.getElementById("batch-search-btn").addEventListener("click", function() {
+  loadBatchEdit();
+});
+document.getElementById("batch-component").addEventListener("keydown", function(e) {
+  if (e.key === "Enter") loadBatchEdit();
+});
+document.getElementById("batch-save-all").addEventListener("click", function() {
+  saveBatchEdit();
+});
 
 // ═══════════════════════════════════════════════════════════
 //  初始化
