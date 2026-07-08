@@ -407,6 +407,87 @@ def get_cross_refs(char: str):
     return result
 
 
+# ─── 批量编辑：按 IDS 部件搜索 ────────────────────────────
+
+
+@app.get("/api/characters/search-by-ids-component")
+def search_by_ids_component(
+    component: str = Query(..., description="IDS 中包含的部件字"),
+    limit: int = Query(200, description="返回条数上限"),
+    offset: int = Query(0, description="偏移量"),
+):
+    """搜索所有 IDS 中包含指定部件的字符"""
+    global _cross_refs
+    if _cross_refs is None:
+        _cross_refs = _build_cross_refs()
+
+    ids_data = _cross_refs.get("ids", {})
+    matched: list[dict] = []
+
+    for ch, ids_list in ids_data.items():
+        for ids_str in ids_list:
+            if component in ids_str:
+                entry = _char_map.get(ch)
+                if entry:
+                    matched.append(entry)
+                break
+
+    total = len(matched)
+    page = matched[offset : offset + limit]
+    slim = [
+        {
+            "char": e["char"],
+            "codepoint": e.get("codepoint", ""),
+            "annotations": e.get("annotations", []),
+            "ids": ids_data.get(e["char"], []),
+        }
+        for e in page
+    ]
+    return {"total": total, "offset": offset, "limit": limit, "results": slim}
+
+
+# ─── 批量保存标注 ──────────────────────────────────────────
+
+
+class BatchAnnotateItem(BaseModel):
+    char: str
+    con: str = ""
+    ref: str = ""
+    comm: str = ""
+
+
+class BatchAnnotateRequest(BaseModel):
+    items: list[BatchAnnotateItem]
+
+
+@app.post("/api/characters/batch-annotate")
+def batch_annotate(data: BatchAnnotateRequest):
+    """批量保存标注：对每个字符的抽构（con）进行批量更新"""
+    updated = 0
+    errors: list[dict] = []
+    for item in data.items:
+        if item.char not in _char_map:
+            errors.append({"char": item.char, "error": "not found"})
+            continue
+        entry = _char_map[item.char]
+        annos = entry.get("annotations", [])
+        if annos:
+            annos[0]["con"] = item.con
+            if item.ref:
+                annos[0]["ref"] = item.ref
+            if item.comm:
+                annos[0]["comm"] = item.comm
+        else:
+            entry["annotations"] = [{"con": item.con, "ref": item.ref, "comm": item.comm}]
+        updated += 1
+    if updated:
+        _save_characters()
+    return {"status": "ok", "updated": updated, "errors": errors}
+
+
+# ─── 字符详情 ────────────────────────────────────────────
+
+
 @app.get("/api/characters/{char:path}")
 def get_character(char: str):
     if char in _char_map:

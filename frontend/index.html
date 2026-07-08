@@ -42,6 +42,18 @@
         <button id="anno-prev-btn" class="btn-nav" title="上一字">◀</button>
         <span id="anno-char-label"></span>
         <button id="anno-next-btn" class="btn-nav" title="下一字">▶</button>
+        <button id="anno-batch-btn" class="btn-nav" title="批量编辑模式" style="margin-left:auto;">批量</button>
+      </div>
+      <!-- 批量编辑面板（在标注视图内） -->
+      <div id="batch-panel" class="batch-panel" style="display:none;">
+        <div class="batch-toolbar">
+          <span>IDS 部件：</span>
+          <input type="text" id="batch-component" placeholder="输入部件字，如 国" style="width:140px;">
+          <button id="batch-search-btn" class="btn-accent">搜索</button>
+          <span id="batch-count" class="badge"></span>
+          <button id="batch-save-all" class="btn-primary" style="margin-left:auto;display:none;">💾 保存全部</button>
+        </div>
+        <div id="batch-char-strip" class="batch-char-strip"></div>
       </div>
       <div id="detail-body" class="anno-body"></div>
     </div>
@@ -72,6 +84,7 @@
       </div>
       <div id="extra-list"></div>
     </div>
+
   </main>
 
   <!-- 新增未编码字弹窗 -->
@@ -91,6 +104,6 @@
     </div>
   </div>
 </div>
-<script src="app.js"></script>
+<script src="app.js?v=3"></script>
 </body>
 </html>
