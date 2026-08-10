@@ -1,17 +1,25 @@
-# 抽象构形数据管理 - 启动脚本
-Write-Host "=== 抽象构形数据管理系统 ===" -ForegroundColor Cyan
+# Abstract Shape Data Management - Startup Script
+Write-Host "=== Abstract Shape Data Management System ===" -ForegroundColor Cyan
 Write-Host ""
 
-# 如果 JSON 数据不存在，运行导出
-if (-not (Test-Path "backend/data/characters.json")) {
-    Write-Host "正在导出数据 ..." -ForegroundColor Yellow
+# Run export only if the export artifacts are missing (guangyun.json / papers.json)
+if (-not (Test-Path "backend/data/guangyun.json") -or -not (Test-Path "backend/data/papers.json")) {
+    Write-Host "Exporting data ..." -ForegroundColor Yellow
     python backend/scripts/export_gy.py
     python backend/scripts/export_papers.py
+} else {
+    Write-Host "Export data already exists, skipping export." -ForegroundColor DarkGray
 }
 
-Write-Host "启动后端服务 ..." -ForegroundColor Green
-Write-Host "访问 http://127.0.0.1:8000" -ForegroundColor Cyan
-Write-Host "按 Ctrl+C 停止服务" -ForegroundColor Yellow
+# Pick a free port automatically (8000 may be occupied by a system service)
+$PORT = 8000
+while (Get-NetTCPConnection -LocalPort $PORT -State Listen -ErrorAction SilentlyContinue) {
+    $PORT++
+}
+
+Write-Host "Starting backend server ..." -ForegroundColor Green
+Write-Host "Open http://127.0.0.1:$PORT" -ForegroundColor Cyan
+Write-Host "Press Ctrl+C to stop the server" -ForegroundColor Yellow
 Write-Host ""
 
-python -m uvicorn backend.main:app --host 127.0.0.1 --port 8000 --reload
+python -m uvicorn backend.main:app --host 127.0.0.1 --port $PORT --reload

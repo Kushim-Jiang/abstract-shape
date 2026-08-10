@@ -12,7 +12,7 @@ from pathlib import Path
 import pandas as pd
 
 REPO_DIR = Path(__file__).resolve().parent.parent.parent
-XLSX_PATH = REPO_DIR / "data" / "gy-20250226.xlsx"
+XLSX_PATH = REPO_DIR / "backend" / "data" / "gy-20250226.xlsx"
 OUT_PATH = REPO_DIR / "backend" / "data" / "guangyun.json"
 
 
@@ -443,6 +443,12 @@ def main():
     print("=== 解析 gy-20250226.xlsx ===")
     print(f"  文件: {XLSX_PATH}")
     print()
+
+    if not XLSX_PATH.exists():
+        print(f"  ⚠ 源文件不存在: {XLSX_PATH}")
+        print("    如需重新导出，请将 gy-20250226.xlsx 放入 backend/data/ 目录后重试。")
+        print(f"    已生成的 {OUT_PATH.name} 将保留。")
+        return
 
     xls = pd.ExcelFile(XLSX_PATH)
 
