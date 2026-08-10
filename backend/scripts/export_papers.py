@@ -11,7 +11,7 @@ from pathlib import Path
 REPO_DIR = Path(__file__).resolve().parent.parent.parent
 DATA_DIR = REPO_DIR / "backend" / "data"
 INPUT_DIR = REPO_DIR / "input"
-GY_PATH = REPO_DIR / "data" / "gy-20250226.xlsx"
+GY_PATH = REPO_DIR / "backend" / "data" / "gy-20250226.xlsx"
 
 OUT_PATH = DATA_DIR / "papers.json"
 
@@ -162,6 +162,10 @@ def parse_gy_refs() -> list[dict]:
     """从 gy-20250226.xlsx 读参考文献"""
     import pandas as pd
 
+    if not GY_PATH.exists():
+        print(f"  ⚠ 源文件不存在: {GY_PATH}，跳过 gy 参考文献解析")
+        return []
+
     xls = pd.ExcelFile(GY_PATH)
     refs = []
     # 尝试多个可能的 sheet 名称
@@ -244,6 +248,11 @@ def main():
     # 解析 gy 参考文献
     gy_refs = parse_gy_refs()
     print(f"  gy 参考文献: {len(gy_refs)} 条")
+
+    # 无任何源数据时，不覆盖已有输出
+    if not paper_refs and not gy_refs:
+        print("  ⚠ 缺少源数据（input/paper.txt 或 backend/data/gy-20250226.xlsx），跳过写入，保留现有 papers.json。")
+        return
 
     # 合并
     all_refs = merge_refs(paper_refs, gy_refs)

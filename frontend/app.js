@@ -324,7 +324,7 @@ function renderDetailRight(char, xref) {
         html += '<div class="xref-row"><span class="xref-label">声首</span><span class="xref-val">' + esc(g.shengshou) + '</span></div>'
           + (g.xiesheng_domain ? '<div class="xref-row"><span class="xref-label">谐声域</span><span class="xref-val xref-series">' + esc(g.xiesheng_domain) + '</span></div>' : '')
           + (g.secondary ? '<div class="xref-row"><span class="xref-label">D列</span><span class="xref-val">' + esc(g.secondary) + '</span></div>' : '')
-          + '<div class="xref-row"><span class="xref-label">韵</span><span class="xref-val">' + esc(g.status) + '</span></div>'
+          + '<div class="xref-row"><span class="xref-label">地位</span><span class="xref-val">' + esc(g.status) + '</span></div>'
           + (g.type ? '<div class="xref-row"><span class="xref-label">类型</span><span class="xref-val">' + esc(g.type) + '</span></div>' : '')
           + '<div class="xref-row"><span class="xref-label">反切</span><span class="xref-val">' + esc(g.qieyu) + '切 (' + esc(g.qiepin) + ')</span></div>'
           + (g.chars_raw ? '<div class="xref-row"><span class="xref-label">列字</span><span class="xref-val xref-sm">' + esc(g.chars_raw) + '</span></div>' : '');
@@ -436,8 +436,18 @@ function insertRefTag(id) {
   }
 }
 
+// 注释输入框随内容自动增高
+function autoResizeCommTextareas() {
+  var t = document.querySelectorAll('#detail-body textarea.field-input');
+  for (var i = 0; i < t.length; i++) {
+    t[i].style.height = "auto";
+    t[i].style.height = t[i].scrollHeight + "px";
+  }
+}
+
 // 筛选参考文献（添加新标注）
 function filterRefs() {
+  autoResizeCommTextareas();
   var filterVal = document.getElementById("ref-filter").value.trim().toLowerCase();
   var commVal = document.getElementById("new-comm").value.toLowerCase();
   var keyword = filterVal || commVal || "";
@@ -464,6 +474,7 @@ function filterRefs() {
 
 // 编辑标注的参考文献筛选
 function filterRefsFor(idx) {
+  autoResizeCommTextareas();
   var filterVal = document.getElementById("edit-ref-filter-" + idx).value.trim().toLowerCase();
   var commVal = document.getElementById("edit-comm-" + idx).value.toLowerCase();
   var keyword = filterVal || commVal || "";

@@ -37,7 +37,6 @@
 }
 .header-row {
   display: flex; align-items: center; justify-content: center; gap: 16px;
-  max-width: 900px; margin: 0 auto;
 }
 .site-title {
   font-size: 18px; font-weight: 700; white-space: nowrap;
@@ -68,6 +67,11 @@ body {
   color: var(--text);
   min-height: 100vh;
   transition: background .2s, color .2s;
+}
+#app {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
 }
 a { color: var(--accent); text-decoration: none; }
 a:hover { text-decoration: underline; }
@@ -102,7 +106,7 @@ textarea { font-family: inherit; resize: vertical; }
 }
 
 /* ─── 主区域 ─────────────────────────────────────────── */
-main { padding: 20px 24px; max-width: 1400px; margin: 0 auto; }
+main { padding: 20px 24px; flex: 1; display: flex; flex-direction: column; min-height: 0; }
 .view { display: none; }
 .view.active { display: block; }
 .toolbar {
@@ -172,13 +176,16 @@ main { padding: 20px 24px; max-width: 1400px; margin: 0 auto; }
 .btn-nav:hover { background: var(--accent2); color: #fff; border-color: var(--accent2); }
 
 .anno-body {
-  height: calc(100vh - 180px); overflow-y: auto;
+  height: auto; flex: 1; min-height: 0; overflow-y: auto;
 }
 .anno-body.batch-active {
-  height: calc(100vh - 240px);
+  height: auto;
+}
+#view-annotate.active {
+  flex: 1; min-height: 0; display: flex; flex-direction: column;
 }
 .detail-cols {
-  display: flex; gap: 24px; height: 100%;
+  display: flex; gap: 24px; align-items: flex-start;
 }
 .detail-left-panel {
   width: 42%; min-width: 320px; flex-shrink: 0;
@@ -186,7 +193,6 @@ main { padding: 20px 24px; max-width: 1400px; margin: 0 auto; }
 .detail-right-panel {
   flex: 1; min-width: 0;
   border-left: 1px solid var(--border); padding-left: 20px;
-  overflow-y: auto;
 }
 .detail-right-panel h4 {
   font-size: 14px; color: var(--text2); margin-bottom: 10px;
