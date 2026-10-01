@@ -71,7 +71,8 @@ body {
 #app {
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
 }
 a { color: var(--accent); text-decoration: none; }
 a:hover { text-decoration: underline; }
@@ -109,6 +110,8 @@ textarea { font-family: inherit; resize: vertical; }
 main { padding: 20px 24px; flex: 1; display: flex; flex-direction: column; min-height: 0; }
 .view { display: none; }
 .view.active { display: block; }
+/* 非写作视图自身滚动 */
+main > .view.active:not(#view-write) { flex: 1; min-height: 0; overflow-y: auto; }
 .toolbar {
   display: flex; align-items: center; gap: 10px;
   margin-bottom: 16px; flex-wrap: wrap;
@@ -376,4 +379,630 @@ main { padding: 20px 24px; flex: 1; display: flex; flex-direction: column; min-h
   background: var(--bg4); border-radius: 3px; padding: 2px 8px;
   font-size: 12px; font-family: monospace; color: var(--text2);
   white-space: nowrap; margin: 1px;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   写作视图（抽构札记 / Markdown 论文式编辑器）
+   ═══════════════════════════════════════════════════════════ */
+
+/* 写作视图占满整个视口高度，内部自行滚动 */
+#view-write.active {
+  flex: 1; min-height: 0;
+  display: flex; flex-direction: row; gap: 0;
+  margin: -20px -24px; /* 抵消 main 的 padding */
+}
+
+/* ─── 左：文档清单 ─────────────────────────────────── */
+.write-sidebar {
+  width: 268px; flex: 0 0 auto; min-width: 140px;
+  background: var(--bg2);
+  display: flex; flex-direction: column; min-height: 0;
+}
+
+/* ─── 竖向拖拽分隔条（左|中 与 中|右）───────────────── */
+.v-split {
+  flex: 0 0 5px; width: 5px; cursor: col-resize;
+  background: var(--bg3); position: relative;
+}
+.v-split::after {
+  content: ""; position: absolute; top: 0; bottom: 0;
+  left: 2px; width: 1px; background: var(--border);
+}
+.v-split:hover, .v-split.dragging { background: var(--accent2); }
+.v-split:hover::after, .v-split.dragging::after { background: transparent; }
+body.col-resizing { cursor: col-resize; user-select: none; }
+body.col-resizing * { cursor: col-resize !important; }
+.ws-head { padding: 10px 12px; border-bottom: 1px solid var(--border); }
+.ws-head input[type="text"] { font-size: 13px; padding: 6px 10px; }
+.ws-toggle {
+  display: flex; align-items: center; gap: 5px; margin-top: 7px;
+  font-size: 12px; color: var(--text2); cursor: pointer;
+}
+.ws-toggle input { width: auto; }
+.ws-actions { display: flex; gap: 5px; margin-top: 8px; }
+.ws-actions .btn-sm { flex: 1; white-space: nowrap; }
+.ws-stat { margin-top: 7px; display: flex; align-items: center; }
+.ws-stat .badge { margin-left: 0; }
+.dirty-dot { color: var(--danger); margin-left: 8px; font-size: 13px; }
+
+/* ─── 区段筛选 ──────────────────────────────────────── */
+.block-filter {
+  padding: 8px 12px; border-bottom: 1px solid var(--border);
+  display: flex; flex-wrap: wrap; gap: 4px; flex-shrink: 0;
+}
+.block-chips { display: contents; }
+.blk-chip {
+  font-size: 11px; padding: 2px 9px; border-radius: 10px;
+  background: var(--bg4); border: 1px solid var(--border);
+  color: var(--text2); cursor: pointer; line-height: 1.6;
+}
+.blk-chip:hover { border-color: var(--accent); color: var(--text); }
+.blk-chip.active {
+  background: var(--accent2); color: #fff; border-color: var(--accent2);
+}
+/* 「▶ 未写」是动作按钮，不是筛选，用虚线区分且不会高亮 */
+.blk-chip.blank {
+  border-style: dashed; background: transparent;
+  color: var(--accent); margin-left: 4px;
+}
+.blk-chip.blank:hover {
+  background: var(--accent2); color: #fff; border-color: var(--accent2);
+  border-style: solid;
+}
+
+.doc-list { flex: 1 1 auto; overflow-y: auto; padding: 6px; min-height: 0; }
+.doc-item {
+  padding: 4px 8px; border-radius: 5px; cursor: pointer;
+  border: 1px solid transparent; margin-bottom: 1px;
+  display: flex; align-items: baseline; gap: 7px;
+}.doc-item:hover { background: var(--bg3); }
+.doc-item.active { background: var(--bg4); border-color: var(--accent2); }
+.doc-item .di-char { font-size: 17px; line-height: 1.35; flex: 1; min-width: 0; }
+.doc-item .di-cp {
+  font-size: 10px; color: var(--text2); font-family: "Cascadia Mono", monospace;
+}
+.doc-item .di-n {
+  font-size: 10.5px; font-weight: 700; color: #fff;
+  background: var(--accent2); border-radius: 9px;
+  padding: 1px 6px; min-width: 17px; text-align: center;
+}
+
+/* ─── 左侧分页 ──────────────────────────────────────── */
+.doc-pager {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 2px;
+  padding: 4px 6px; flex-shrink: 0;
+  border-top: 1px solid var(--border); background: var(--bg2);
+}
+.doc-pager:empty { display: none; }
+.pg-btn {
+  min-width: 20px; height: 19px; padding: 0 4px;
+  font-size: 10.5px; line-height: 1; border-radius: 3px;
+  border: 1px solid var(--border); background: var(--bg); color: var(--text2);
+}
+.pg-btn:hover:not(:disabled) { border-color: var(--accent2); color: var(--text); }
+.pg-btn:disabled { opacity: .3; cursor: default; }
+.pg-btn.active {
+  background: var(--accent2); color: #fff; border-color: var(--accent2);
+  font-weight: 700;
+}
+.pg-gap { font-size: 10px; color: var(--text2); }
+.pg-info {
+  flex: 1 0 100%; text-align: right;
+  font-size: 10px; color: var(--text2); margin-top: 2px;
+  font-family: "Cascadia Mono", monospace; white-space: nowrap;
+}
+
+/* ─── 右：编辑器 ────────────────────────────────────── */
+.write-main { flex: 1; min-width: 0; display: flex; flex-direction: column; min-height: 0; }
+.write-empty {
+  flex: 1; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 6px;
+  color: var(--text2); padding: 40px; text-align: center;
+}
+.write-empty .we-glyph {
+  font-size: 72px; color: var(--border); line-height: 1;
+  font-family: "ZihuiSongJGW", serif;
+}
+.write-empty h3 { font-size: 18px; color: var(--text); font-weight: 600; }
+.write-empty .we-hint { font-size: 12px; max-width: 460px; line-height: 1.7; margin-top: 8px; }
+.write-empty code {
+  background: var(--bg4); padding: 1px 5px; border-radius: 3px;
+  font-size: 11px;
+}
+
+.write-editor { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+
+.we-toolbar {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 16px; border-bottom: 1px solid var(--border);
+  background: var(--bg2); flex-shrink: 0; flex-wrap: wrap;
+}
+.doc-nav-label { font-size: 12px; color: var(--text2); white-space: nowrap; }
+.doc-head-char {
+  font-size: 30px; font-weight: 600; line-height: 1.1;
+  margin-left: 6px;
+}
+.doc-head-block {
+  font-size: 11px; color: var(--text2); background: var(--bg4);
+  border-radius: 10px; padding: 2px 9px; white-space: nowrap;
+}
+.doc-title-input {
+  flex: 1; min-width: 140px; max-width: 380px;
+  font-size: 15px; font-weight: 600; padding: 5px 10px;
+  background: var(--bg); border: 1px solid transparent;
+}
+
+/* ─── 抽构输入与校验状态 ─────────────────────────────── */
+.nf-con {
+  font-family: "Cascadia Mono", "ZihuiSongJGW", Consolas, monospace;
+  font-size: 24px; letter-spacing: .06em; padding: 10px 14px;
+}
+.shape-status {
+  font-size: 12px; color: var(--text2); line-height: 1.7;
+  min-height: 20px; display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px;
+}
+.shape-status.bad { color: var(--danger); }
+.shape-status .shape-ok { color: var(--success-hover); }
+.shape-status .shape-pos { opacity: .7; font-size: 11px; }
+.shape-norm {
+  background: var(--bg4); border-radius: 3px; padding: 1px 6px;
+  font-family: "Cascadia Mono", Consolas, monospace; font-size: 13px;
+  color: var(--accent);
+}
+.shape-warn {
+  flex-basis: 100%; color: #d29922; font-size: 11.5px; line-height: 1.6;
+}
+
+/* 标注库原始标注（没有自写记录时的回退显示） */
+.nf-fallback {
+  background: var(--bg3); border: 1px dashed var(--border);
+  border-radius: 6px; padding: 10px 12px; font-size: 12.5px;
+  line-height: 1.8; color: var(--text2);
+}
+.nf-fallback-title {
+  font-size: 11px; font-weight: 600; color: var(--text2);
+  margin-bottom: 6px; letter-spacing: .05em;
+}
+.nf-fallback code {
+  background: var(--bg4); border-radius: 3px; padding: 1px 5px;
+  color: var(--accent); font-size: 13px;
+}
+.nf-fallback-comm { margin-top: 6px; line-height: 1.75; }
+
+.nf-textarea.analysis { min-height: 380px; }
+.nf-textarea.extra { min-height: 120px; font-size: 14px; }
+.doc-title-input:hover { border-color: var(--border); }
+.doc-title-input:focus { border-color: var(--accent); }
+.we-spacer { flex: 1; }
+.save-state { font-size: 12px; color: var(--text2); min-width: 62px; }
+.save-state.ok { color: var(--success-hover); }
+.save-state.err { color: var(--danger); }
+
+/* ─── 双栏 ──────────────────────────────────────────── */
+.we-panes { flex: 1; display: flex; min-height: 0; }
+
+/* 左列：一个框，编辑 / 预览 二选一 */
+.we-col-left {
+  flex: 1 1 auto; min-width: 200px; display: flex; flex-direction: column; min-height: 0;
+}
+.we-switch {
+  display: flex; align-items: center; gap: 4px; flex-shrink: 0;
+  padding: 7px 12px; border-bottom: 1px solid var(--border);
+  background: var(--bg2);
+}
+.we-switch-btn {
+  font-size: 12.5px; padding: 4px 16px; border-radius: 6px;
+  border: 1px solid transparent; background: transparent; color: var(--text2);
+}
+.we-switch-btn:hover { background: var(--bg3); color: var(--text); }
+.we-switch-btn.active {
+  background: var(--bg); color: var(--accent);
+  border-color: var(--border); font-weight: 600;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, .06);
+}
+.we-stage { flex: 1; min-height: 0; position: relative; }
+.we-pane { display: none; height: 100%; overflow-y: auto; }
+.we-pane.active { display: block; }
+.we-pane-edit { padding: 18px 22px; }
+.we-pane-preview { padding: 18px 28px; background: var(--bg2); }
+
+/* 右列：参考资料 */
+.we-col-right {
+  width: 400px; flex: 0 0 auto; min-width: 180px; min-height: 0;
+  background: var(--bg2);
+  display: flex; flex-direction: column;
+}
+.ref-tabs {
+  display: flex; gap: 2px; padding: 6px 8px 0; flex-shrink: 0;
+  border-bottom: 1px solid var(--border); background: var(--bg);
+}
+.ref-tab {
+  font-size: 12px; padding: 5px 12px; border: none; background: transparent;
+  color: var(--text2); border-radius: 5px 5px 0 0; border-bottom: 2px solid transparent;
+}
+.ref-tab:hover { color: var(--text); background: var(--bg3); }
+.ref-tab.active {
+  color: var(--accent); border-bottom-color: var(--accent);
+  background: var(--bg2); font-weight: 600;
+}
+.ref-panels { flex: 1; min-height: 0; overflow-y: auto; }
+.ref-panel { display: none; padding: 14px 16px; }
+.ref-panel.active { display: block; }
+
+/* ─── 资料模块（抽构表 / 广韵 / IES / 词表）─────────── */
+.mat-sec { margin-bottom: 20px; }
+.mat-sec:last-child { margin-bottom: 0; }
+.mat-h {
+  font-size: 11px; font-weight: 700; letter-spacing: .08em;
+  color: var(--text2); text-transform: uppercase;
+  padding-bottom: 5px; margin-bottom: 9px;
+  border-bottom: 1px solid var(--border);
+  position: sticky; top: -14px; z-index: 2;
+  background: var(--bg2);
+}
+.mat-body { font-size: 12.5px; }
+
+/* ─── 参考文献编辑器 ────────────────────────────────── */
+.ref-list { display: flex; flex-direction: column; gap: 6px; }
+.ref-item {
+  border: 1px solid var(--border); border-radius: 6px;
+  padding: 8px 10px; background: var(--bg); cursor: pointer;
+}
+.ref-item:hover { border-color: var(--accent); }
+.ref-item.active { border-color: var(--accent2); background: var(--bg3); }
+.ref-item .ri-id {
+  font-family: "Cascadia Mono", monospace; font-size: 11px;
+  color: var(--accent); margin-right: 6px;
+}
+.ref-item .ri-badge {
+  font-size: 10px; color: var(--text2); border: 1px solid var(--border);
+  border-radius: 8px; padding: 0 6px; margin-left: 4px;
+}
+.ref-item .ri-cite {
+  font-size: 12.5px; line-height: 1.65; color: var(--text);
+  margin-top: 4px; word-break: break-word;
+}
+.ref-item .ri-actions { margin-top: 6px; display: flex; gap: 6px; }
+
+/* 表单 */
+.ref-form { display: flex; flex-direction: column; gap: 9px; }
+.ref-field { display: flex; flex-direction: column; gap: 3px; }
+.ref-field > label {
+  font-size: 11px; color: var(--text2); font-weight: 600;
+  display: flex; align-items: baseline; gap: 6px;
+}
+.ref-field > label .bib {
+  font-family: "Cascadia Mono", monospace; font-size: 10px;
+  opacity: .65; font-weight: 400;
+}
+.ref-field input, .ref-field textarea, .ref-field select {
+  font-size: 13px; padding: 6px 9px;
+}
+.ref-authors { display: flex; flex-direction: column; gap: 4px; }
+.ref-author-row { display: flex; gap: 6px; align-items: center; }
+.ref-author-row input { flex: 1; }
+.ref-inline { display: flex; gap: 9px; }
+.ref-inline > .ref-field { flex: 1; min-width: 0; }
+.ref-form-actions {
+  display: flex; gap: 8px; align-items: center;
+  padding-top: 10px; border-top: 1px dashed var(--border);
+}
+.ref-bibtex {
+  width: 100%; font-family: "Cascadia Mono", Consolas, monospace;
+  font-size: 12px; line-height: 1.7; background: var(--bg);
+  border: 1px solid var(--border); border-radius: 6px; padding: 10px;
+  white-space: pre; overflow-x: auto; color: var(--text2);
+}
+
+.panel-empty {
+  padding: 20px 4px; font-size: 12.5px; color: var(--text2);
+  line-height: 1.7;
+}
+
+/* 左侧只读材料（抽构 / 说明 都来自抽构表） */
+.nf-readonly .nf-value {
+  border: 1px solid var(--border); border-radius: 6px;
+  background: var(--bg); padding: 10px 12px;
+  font-size: 13.5px; line-height: 1.8; min-height: 38px;
+}
+.nf-readonly .nf-value.nf-con {
+  font-family: "Cascadia Mono", "ZihuiSongJGW", monospace;
+  font-size: 15px; letter-spacing: .04em;
+}
+.nf-none { color: var(--text2); font-style: italic; font-size: 12.5px; }
+
+/* ─── 条（entry）编辑 ──────────────────────────────── */
+.ent-bars {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 5px;
+  padding-bottom: 10px; border-bottom: 1px solid var(--border);
+}
+.ent-bar {
+  font-family: "Cascadia Mono", "ZihuiSongJGW", monospace;
+  font-size: 12.5px; padding: 3px 10px; border-radius: 5px;
+  border: 1px solid var(--border); background: var(--bg); color: var(--text2);
+}
+.ent-bar:hover { border-color: var(--accent2); color: var(--text); }
+.ent-bar.active {
+  background: var(--accent2); color: #fff; border-color: var(--accent2);
+  font-weight: 600;
+}
+.ent-add { padding: 3px 10px; }
+.ent-body { display: flex; flex-direction: column; gap: 12px; padding-top: 4px; }
+.ent-con, .ent-ref-con {
+  font-family: "Cascadia Mono", "ZihuiSongJGW", monospace;
+  font-size: 15px; letter-spacing: .04em;
+}
+.ent-notes { min-height: 200px; line-height: 1.85; }
+
+.ent-refs { display: flex; flex-direction: column; gap: 5px; }
+.ent-ref-head {
+  display: flex; align-items: baseline; gap: 6px;
+  font-size: 10.5px; color: var(--text2); padding-bottom: 2px;
+}
+.ent-ref-head .erh-id { flex: 3 1 0; min-width: 0; }
+.ent-ref-head .erh-pg { flex: 2 1 0; min-width: 0; text-align: center; }
+.ent-ref-head .erh-del { flex: 0 0 28px; }
+.ent-ref-row { display: flex; gap: 6px; align-items: center; }
+.ent-ref-row input {
+  font-family: "Cascadia Mono", "ZihuiSongJGW", monospace;
+  font-size: 12.5px; min-width: 0;
+}
+.ent-ref-row .ent-ref-input { flex: 3 1 0; }
+.ent-ref-row .ent-ref-pg1,
+.ent-ref-row .ent-ref-pg2 { flex: 2 1 0; text-align: center; }
+.ent-ref-row .ent-ref-del { flex: 0 0 28px; padding-left: 0; padding-right: 0; }
+
+
+/* ─── 右侧参考资料面板 ─────────────────────────────── */
+.xref-card {
+  background: var(--bg); border: 1px solid var(--border);
+  border-radius: 6px; padding: 9px 11px; margin-bottom: 7px;
+}
+.xref-title {
+  font-size: 11.5px; font-weight: 700; color: var(--accent);
+  margin-bottom: 5px; line-height: 1.5;
+}
+.xref-sub {
+  font-size: 11.5px; color: var(--text2); margin-bottom: 5px;
+}
+.xref-row {
+  display: flex; gap: 8px; font-size: 12.5px; line-height: 1.65;
+  margin-bottom: 4px; align-items: baseline;
+}
+.xref-body { word-break: break-word; flex: 1; line-height: 1.7; }
+.xref-body.mono {
+  font-family: "Cascadia Mono", "ZihuiSongJGW", monospace; font-size: 13px;
+}
+.xref-foot {
+  font-size: 11px; color: var(--text2); margin-top: 5px;
+  padding-top: 5px; border-top: 1px solid var(--border);
+}
+.xref-tag {
+  background: var(--bg4); border-radius: 3px; padding: 1px 7px;
+  font-size: 11px; color: var(--text2); flex-shrink: 0;
+}
+
+/* ─── 属性 / 值 列表（抽构表 / 广韵 / 词表 共用）──────── */
+.prop-list { display: flex; flex-direction: column; gap: 0; }
+.prop-row {
+  display: flex; gap: 10px; align-items: baseline;
+  padding: 3px 0; border-bottom: 1px dashed var(--border);
+  font-size: 12.5px; line-height: 1.7;
+}
+.prop-row:last-child { border-bottom: none; }
+.prop-k {
+  flex: 0 0 68px; font-size: 11px; color: var(--text2);
+  text-align: right; padding-top: 2px;
+}
+.prop-v { flex: 1; min-width: 0; word-break: break-word; }
+.prop-v code {
+  font-family: "Cascadia Mono", "ZihuiSongJGW", monospace;
+  font-size: 14px; color: var(--accent); background: none;
+}
+.prop-v .sheet-parent {
+  font-family: "Cascadia Mono", "ZihuiSongJGW", monospace;
+  font-size: 13px; color: var(--accent); margin-right: 7px;
+  white-space: nowrap;
+}
+.prop-v.mono { font-family: "Cascadia Mono", "ZihuiSongJGW", monospace; font-size: 13px; }
+.prop-v .dim { color: var(--text2); }
+.prop-comment {
+  margin-top: 10px; padding-top: 9px;
+  border-top: 1px solid var(--border);
+  font-size: 12.5px; line-height: 1.85; color: var(--text);
+}
+.prop-comment p { margin: 0 0 6px; }
+.prop-comment p:last-child { margin-bottom: 0; }
+
+
+/* ─── 札记表单（像论文段落，不是小输入框） ───────────── */
+.note-forms { max-width: 900px; }
+.note-form { display: flex; flex-direction: column; gap: 12px; }
+
+.nf-row { display: flex; flex-direction: column; gap: 5px; }
+.nf-label {
+  font-size: 12px; font-weight: 600; color: var(--text2);
+  letter-spacing: .04em;
+  display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap;
+}
+.nf-label .hint {
+  font-weight: 400; font-size: 11px; opacity: .75;
+  white-space: normal; line-height: 1.5;
+}
+
+/* 主字段：抽构 / 参考，用大字号单行输入，像文章里的小标题 */
+.nf-input {
+  width: 100%; background: var(--bg); border: 1px solid var(--border);
+  color: var(--text); border-radius: 6px; padding: 9px 12px;
+  font-size: 15px; font-family: inherit; outline: none; transition: .15s;
+}
+.nf-input:focus { border-color: var(--accent); background: var(--bg2); }
+.nf-input-lg { font-size: 19px; font-weight: 600; }
+
+/* 正文区：占满剩余高度的大 textarea，像论文正文 */
+.nf-textarea {
+  width: 100%; min-height: 300px; resize: vertical;
+  background: var(--bg); border: 1px solid var(--border);
+  color: var(--text); border-radius: 6px; padding: 14px 16px;
+  font-size: 15px; line-height: 1.85; font-family: inherit; outline: none;
+  transition: .15s; tab-size: 4;
+}
+.nf-textarea:focus { border-color: var(--accent); background: var(--bg2); }
+.nf-textarea.comm { min-height: 340px; }
+
+.nf-inline { display: flex; gap: 12px; }
+.nf-inline > .nf-row { flex: 1; min-width: 0; }
+
+.nf-status-row { display: flex; gap: 6px; flex-wrap: wrap; }
+.status-chip {
+  font-size: 12px; padding: 3px 12px; border-radius: 12px;
+  background: var(--bg4); border: 1px solid var(--border);
+  color: var(--text2); cursor: pointer;
+}
+.status-chip:hover { border-color: var(--accent); }
+.status-chip.active { background: var(--accent2); color: #fff; border-color: var(--accent2); }
+
+/* 文献 / 标签 */
+.nf-refs { display: flex; flex-direction: column; gap: 5px; }
+.nf-ref-row { display: flex; gap: 6px; align-items: center; }
+.nf-ref-row input { flex: 1; font-size: 13px; padding: 6px 10px; }
+.ref-picker {
+  font-size: 12px; padding: 6px 10px; max-width: 100%;
+}
+.ref-suggest {
+  display: flex; flex-wrap: wrap; gap: 4px; margin-top: 2px;
+}
+.ref-suggest .ref-tag { font-size: 11px; }
+
+/* 表单底部操作 */
+.nf-actions {
+  display: flex; gap: 8px; align-items: center;
+  padding-top: 12px; border-top: 1px dashed var(--border);
+}
+.nf-actions .we-spacer { flex: 1; }
+
+/* ─── Markdown 预览排版（像论文） ────────────────────── */
+.markdown-body {
+  font-size: 15px; line-height: 1.9; max-width: 820px;
+  word-wrap: break-word; overflow-wrap: anywhere;
+}
+.markdown-body > *:first-child { margin-top: 0; }
+.markdown-body h1 {
+  font-size: 26px; font-weight: 700; line-height: 1.4;
+  margin: 0 0 18px; padding-bottom: 10px;
+  border-bottom: 2px solid var(--border);
+}
+.markdown-body h2 {
+  font-size: 20px; font-weight: 700; margin: 26px 0 12px;
+  padding-bottom: 6px; border-bottom: 1px solid var(--border);
+}
+.markdown-body h3 {
+  font-size: 17px; font-weight: 700; margin: 22px 0 10px;
+  color: var(--accent);
+}
+.markdown-body h4, .markdown-body h5, .markdown-body h6 {
+  font-size: 14px; font-weight: 700; margin: 18px 0 8px;
+  color: var(--text2); letter-spacing: .04em;
+}
+.markdown-body p { margin: 0 0 12px; text-indent: 0; }
+.markdown-body ul, .markdown-body ol { margin: 0 0 12px; padding-left: 26px; }
+.markdown-body li { margin-bottom: 4px; }
+.markdown-body blockquote {
+  margin: 0 0 12px; padding: 6px 14px;
+  border-left: 3px solid var(--accent2); color: var(--text2);
+  background: var(--bg3); border-radius: 0 4px 4px 0;
+}
+.markdown-body code {
+  background: var(--bg4); padding: 1px 5px; border-radius: 3px;
+  font-size: .9em; font-family: "Cascadia Mono", Consolas, monospace;
+}
+.markdown-body pre {
+  background: var(--bg); border: 1px solid var(--border);
+  border-radius: 6px; padding: 12px 14px; overflow-x: auto;
+  margin: 0 0 14px;
+}
+.markdown-body pre code { background: none; padding: 0; font-size: 13px; }
+.markdown-body hr {
+  border: none; border-top: 1px solid var(--border); margin: 22px 0;
+}
+.markdown-body table {
+  border-collapse: collapse; margin: 0 0 14px; font-size: 14px;
+  width: 100%;
+}
+.markdown-body th, .markdown-body td {
+  border: 1px solid var(--border); padding: 6px 10px; text-align: left;
+}
+.markdown-body th { background: var(--bg4); font-weight: 600; }
+.markdown-body img { max-width: 100%; }
+.markdown-body a { color: var(--accent); }
+.markdown-body .md-check { margin-right: 6px; }
+.markdown-body .md-reflink {
+  background: var(--bg4); border-radius: 3px; padding: 0 5px;
+  font-size: .9em; color: var(--accent);
+}
+.markdown-body .md-noteref {
+  background: var(--bg4); border-radius: 3px; padding: 0 5px;
+  font-size: .9em; color: var(--success-hover);
+  border-bottom: 1px dashed var(--success-hover);
+  text-decoration: none; white-space: nowrap;
+}
+.markdown-body .md-noteref:hover {
+  background: var(--success); color: #fff; border-bottom-color: transparent;
+  text-decoration: none;
+}
+
+/* ─── 原始 Markdown / 自由正文 ─────────────────────── */
+.we-raw {
+  display: flex; flex-direction: column; flex: 1;
+  min-height: 0; padding: 12px 16px; gap: 8px;
+  overflow: hidden;
+}
+.we-raw textarea {
+  flex: 1; min-height: 200px; resize: none;
+  font-family: "Cascadia Mono", Consolas, monospace;
+  font-size: 13px; line-height: 1.7;
+}
+.raw-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.raw-actions .hint { font-size: 11px; color: var(--text2); }
+.raw-actions code {
+  background: var(--bg4); padding: 1px 4px; border-radius: 3px;
+}
+
+.doc-freeform {
+  flex-shrink: 0; border-top: 1px solid var(--border);
+  background: var(--bg2); padding: 0 16px;
+  position: relative; z-index: 1;
+}
+.doc-freeform > summary {
+  cursor: pointer; font-size: 12px; color: var(--text2);
+  padding: 8px 0; user-select: none;
+}
+.doc-freeform > summary:hover { color: var(--text); }
+.ff-grid {
+  display: flex; flex-direction: column; gap: 6px; padding-bottom: 14px;
+}
+.ff-grid label { font-size: 12px; color: var(--text2); }
+.ff-grid .hint { opacity: .75; }
+.ff-grid textarea {
+  font-family: "Cascadia Mono", Consolas, monospace;
+  font-size: 13px; line-height: 1.7;
+}
+
+/* 手改 Markdown 时，隐藏预览与底部面板，给编辑区留出全部空间 */
+#view-write.raw-mode .we-panes,
+#view-write.raw-mode .doc-freeform { display: none; }
+
+/* ─── 窄屏：清单收到上方 / 预览折叠 ─────────────────── */
+@media (max-width: 900px) {
+  #view-write.active { flex-direction: column; }
+  /* 窄屏改上下堆叠，横向拖拽条隐藏，宽度交回 CSS 管理 */
+  .v-split { display: none; }
+  .write-sidebar {
+    width: 100% !important; max-height: 190px;
+    border-bottom: 1px solid var(--border);
+  }
+  .we-panes { flex-direction: column; }
+  .we-col-right {
+    width: 100% !important; border-top: 1px solid var(--border);
+  }
 }
