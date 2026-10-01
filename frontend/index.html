@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>抽构标注管理</title>
-<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="style.css?v=24">
 </head>
 <body>
 <div id="app">
@@ -12,8 +12,9 @@
     <div class="header-row">
       <span class="site-title">抽构标注管理</span>
       <nav class="header-nav">
+        <button class="nav-btn active" data-view="write">写作</button>
         <button class="nav-btn" data-view="annotate">标注</button>
-        <button class="nav-btn active" data-view="chars">广义汉字</button>
+        <button class="nav-btn" data-view="chars">广义汉字</button>
         <button class="nav-btn" data-view="browse-ob">甲骨文</button>
         <button class="nav-btn" data-view="papers">参考文献</button>
         <button class="nav-btn" data-view="extra">未编码字</button>
@@ -21,13 +22,110 @@
       <button id="theme-toggle" class="icon-btn" title="切换主题">☀️</button>
     </div>
   </header>
-  </nav>
 
   <main>
+    <!-- ═══ 抽构视图（abstract shape + 分析） ═══ -->
+    <div id="view-write" class="view active write-view">
+      <!-- 左侧：汉字列表（按 Unicode 区段分组） -->
+      <aside class="write-sidebar" id="pane-left">
+        <div class="ws-head">
+          <input type="text" id="doc-search">
+          <div class="ws-actions">
+            <button id="doc-refresh-btn" class="btn-sm">⟳ 刷新</button>
+          </div>
+          <div class="ws-stat">
+            <span id="doc-count" class="badge"></span>
+            <span id="doc-dirty" class="dirty-dot" style="display:none">●</span>
+          </div>
+        </div>
+        <div class="block-filter">
+          <button class="blk-chip active" data-block="__all__">全部</button>
+          <button class="blk-chip done" data-block="__done__">✓ 已写</button>
+          <button id="doc-first-blank" class="blk-chip blank">▶ 未写</button>
+          <div id="block-chips" class="block-chips"></div>
+        </div>
+        <div id="doc-list" class="doc-list"></div>
+        <div id="doc-pager" class="doc-pager"></div>
+      </aside>
+
+      <div class="v-split" id="split-left" title="拖动调整宽度"></div>
+
+      <!-- 右侧：抽构 + 分析 -->
+      <section class="write-main" id="write-main">
+        <!-- 空状态 -->
+        <div id="write-empty" class="write-empty">
+          <div class="we-glyph">构</div>
+        </div>
+
+        <!-- 编辑器主体 -->
+        <div id="write-editor" class="write-editor" style="display:none">
+          <!-- 工具栏 -->
+          <div class="we-toolbar">
+            <button id="doc-prev-btn" class="btn-nav">◀</button>
+            <span id="doc-nav-label" class="doc-nav-label"></span>
+            <button id="doc-next-btn" class="btn-nav">▶</button>
+            <span id="doc-head-char" class="doc-head-char"></span>
+            <span id="doc-head-block" class="doc-head-block"></span>
+            <span class="we-spacer"></span>
+            <span id="doc-save-state" class="save-state"></span>
+          </div>
+
+          <!-- 左右分栏：左＝编辑/预览（可切换），右＝参考资料 -->
+          <div class="we-panes" id="doc-panes">
+            <!-- ── 左：一个框，编辑 / 预览 切换 ── -->
+            <div class="we-col-left">
+              <div class="we-switch">
+                <button class="we-switch-btn active" id="sw-edit">编辑</button>
+                <button class="we-switch-btn" id="sw-preview">预览</button>
+              </div>
+              <div class="we-stage" id="we-stage">
+                <div class="we-pane we-pane-edit active" id="pane-edit">
+                  <div id="note-forms" class="note-forms"></div>
+                </div>
+                <div class="we-pane we-pane-preview" id="pane-preview">
+                  <article id="doc-preview" class="markdown-body"></article>
+                </div>
+              </div>
+            </div>
+
+            <div class="v-split" id="split-right" title="拖动调整宽度"></div>
+
+            <!-- ── 右：参考资料 ── -->
+            <aside class="we-col-right" id="pane-right">
+              <div class="ref-tabs">
+                <button class="ref-tab active" data-panel="refs">文献</button>
+                <button class="ref-tab" data-panel="materials">资料</button>
+              </div>
+              <div class="ref-panels">
+                <div class="ref-panel active" id="panel-refs"></div>
+                <div class="ref-panel" id="panel-materials">
+                  <section class="mat-sec" id="sec-sheet">
+                    <h4 class="mat-h">抽构表</h4>
+                    <div class="mat-body" id="panel-sheet"></div>
+                  </section>
+                  <section class="mat-sec" id="sec-guangyun">
+                    <h4 class="mat-h">广韵</h4>
+                    <div class="mat-body" id="panel-guangyun"></div>
+                  </section>
+                  <section class="mat-sec" id="sec-ies">
+                    <h4 class="mat-h">IES</h4>
+                    <div class="mat-body" id="panel-ies"></div>
+                  </section>
+                  <section class="mat-sec" id="sec-lexicon">
+                    <h4 class="mat-h">词表</h4>
+                    <div class="mat-body" id="panel-lexicon"></div>
+                  </section>
+                </div>
+              </div>
+            </aside>
+          </div>
+        </div>
+      </section>
+    </div>
     <!-- ═══ 广义汉字视图（查询列表） ═══ -->
-    <div id="view-chars" class="view active">
+    <div id="view-chars" class="view">
       <div class="toolbar">
-        <input type="text" id="char-search" placeholder="搜索字符…">
+        <input type="text" id="char-search">
         <button id="char-search-btn" class="btn-primary">搜索</button>
         <button id="first-unanno-btn" class="btn-accent">▶ 第一个未标</button>
         <span id="char-count" class="badge"></span>
@@ -48,7 +146,7 @@
       <div id="batch-panel" class="batch-panel" style="display:none;">
         <div class="batch-toolbar">
           <span>IDS 部件：</span>
-          <input type="text" id="batch-component" placeholder="输入部件字，如 国" style="width:140px;">
+          <input type="text" id="batch-component" style="width:140px;">
           <button id="batch-search-btn" class="btn-accent">搜索</button>
           <span id="batch-count" class="badge"></span>
           <button id="batch-save-all" class="btn-primary" style="margin-left:auto;display:none;">💾 保存全部</button>
@@ -61,7 +159,7 @@
     <!-- ═══ 甲骨文视图（查询列表） ═══ -->
     <div id="view-browse-ob" class="view">
       <div class="toolbar">
-        <input type="text" id="ob-search" placeholder="搜索甲骨文字形…">
+        <input type="text" id="ob-search">
         <button id="ob-search-btn" class="btn-primary">搜索</button>
         <span id="ob-count" class="badge"></span>
       </div>
@@ -71,7 +169,7 @@
 
     <div id="view-papers" class="view">
       <div class="toolbar">
-        <input type="text" id="paper-search" placeholder="搜索参考文献…">
+        <input type="text" id="paper-search">
         <span id="paper-count" class="badge"></span>
       </div>
       <div id="paper-list"></div>
@@ -104,6 +202,9 @@
     </div>
   </div>
 </div>
-<script src="app.js?v=3"></script>
+<script src="markdown.js?v=9"></script>
+<script src="writer.js?v=24"></script>
+<script src="refs.js?v=6"></script>
+<script src="app.js?v=10"></script>
 </body>
 </html>
