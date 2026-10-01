@@ -1,0 +1,23 @@
+U+4EBA	kAbstractShape	I1
+U+4EBB	kAbstractShape	= U+4EBA	# U+4EBA (I1); component used as a side form.
+U+4EBC	kAbstractShape	= J14	# U+53E3 (J14); Shuowen component, split off from the top of U+5408.
+U+4EBD	kAbstractShape	= U+7F85	# U+7F85; mnemonic glyph for U+7F85.
+U+4EBE	kAbstractShape	= U+4EA1	# U+4EA1; see U+225C5 U+2845F U+26B06 , clericalisation.
+U+4EBF	kAbstractShape	LTR I1 U10	# c.f. U+5104; the phonetic changed from U+610F to U+4E59 (U10).
+U+4EC0	kAbstractShape	LTR I1 U9
+U+4EC1	kAbstractShape	LTR I1 U16	# original form LTR I1 U16 
+U+4EC2	kAbstractShape	LTR I1 P15
+U+4EC3	kAbstractShape	LTR I1 U12
+U+4EC4	kAbstractShape	= U+5928	# U+5928; U+6603 bottom phonetic, U+3CC1 right-hand phonetic.
+U+4EC5	kAbstractShape	LTR I1 K2	# See Bronze inscriptions.
+U+4EC5	kAbstractShape	= U+50C5	# U+50C5; U+53C8 (K2) replaces U+5807.
+U+4EC6	kAbstractShape	LTR I1 V5
+U+4EC7	kAbstractShape	LTR I1 U8
+U+4EC8	kAbstractShape	LTR I1 U7	
+U+4EC9	kAbstractShape	= J5	# U+244EF (J5); later folk-etymologised.
+U+4ECA	kAbstractShape	Y11
+U+4ECB	kAbstractShape	Y12
+U+4ECC	kAbstractShape	C2	# seen in U+23C9D . U+99AE left-hand phonetic.
+U+4ECD	kAbstractShape	LTR I1 L6
+U+4ECE	kAbstractShape	LTR I1 I1
+
