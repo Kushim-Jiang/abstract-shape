@@ -43,7 +43,8 @@ document.querySelectorAll(".nav-btn").forEach(btn => {
     const v = document.getElementById("view-" + btn.dataset.view);
     if (v) v.classList.add("active");
     const view = btn.dataset.view;
-    if (view === "chars") loadChars();
+    if (view === "write") { if (typeof initWriter === "function") initWriter(); }
+    else if (view === "chars") loadChars();
     else if (view === "browse-ob") loadOB();
     else if (view === "papers") loadPapers();
     else if (view === "extra") loadExtra();
@@ -276,7 +277,7 @@ function renderDetailLeft(char, data, annos) {
         + '<div class="field"><span class="field-label">注释 (comm) <span class="hint">输入关键词筛选参考文献</span></span>'
         + '<textarea class="field-input" id="edit-comm-' + i + '" rows="2" oninput="filterRefsFor(' + i + ')">' + esc(a.comm || '') + '</textarea></div>'
         + '<div class="ref-filter-row">'
-        + '<input class="ref-filter-input" id="edit-ref-filter-' + i + '" placeholder="筛选参考文献…" oninput="filterRefsFor(' + i + ')">'
+        + '<input class="ref-filter-input" id="edit-ref-filter-' + i + '" oninput="filterRefsFor(' + i + ')">'
         + '</div>'
         + '<div id="edit-ref-suggestions-' + i + '" class="ref-suggestions"></div>'
         + '<div class="actions">'
@@ -289,13 +290,13 @@ function renderDetailLeft(char, data, annos) {
   // 添加新标注
   html += '<div class="anno-add-inline"><h4>+ 添加新标注</h4>'
     + '<div class="field"><span class="field-label">抽构 (con) <span class="hint">如 *考、=其</span></span>'
-    + '<input class="field-input" id="new-con" placeholder="抽构"></div>'
+    + '<input class="field-input" id="new-con"></div>'
     + '<div class="field"><span class="field-label">参考抽构 (ref)</span>'
-    + '<input class="field-input" id="new-ref" placeholder="参考抽构"></div>'
+    + '<input class="field-input" id="new-ref"></div>'
     + '<div class="field"><span class="field-label">注释 (comm) <span class="hint">输入作者/关键词筛选参考文献</span></span>'
-    + '<textarea class="field-input" id="new-comm" rows="2" placeholder="注释" oninput="filterRefs()"></textarea></div>'
+    + '<textarea class="field-input" id="new-comm" rows="2" oninput="filterRefs()"></textarea></div>'
     + '<div class="ref-filter-row">'
-    + '<input class="ref-filter-input" id="ref-filter" placeholder="筛选参考文献…" oninput="filterRefs()">'
+    + '<input class="ref-filter-input" id="ref-filter" oninput="filterRefs()">'
     + '</div>'
     + '<div id="new-ref-suggestions" class="ref-suggestions"></div>'
     + '<button class="btn-primary btn-sm" onclick="addNewAnno()">保存</button>'
@@ -636,7 +637,7 @@ function renderOBLeft(entry, annos) {
         + '<div class="field"><span class="field-label">注释 (comm) <span class="hint">输入关键词筛选参考文献</span></span>'
         + '<textarea class="field-input" id="edit-comm-' + i + '" rows="2" oninput="filterRefsFor(' + i + ')">' + esc(a.comm || '') + '</textarea></div>'
         + '<div class="ref-filter-row">'
-        + '<input class="ref-filter-input" id="edit-ref-filter-' + i + '" placeholder="筛选参考文献…" oninput="filterRefsFor(' + i + ')">'
+        + '<input class="ref-filter-input" id="edit-ref-filter-' + i + '" oninput="filterRefsFor(' + i + ')">'
         + '</div>'
         + '<div id="edit-ref-suggestions-' + i + '" class="ref-suggestions"></div>'
         + '<div class="actions">'
@@ -648,13 +649,13 @@ function renderOBLeft(entry, annos) {
 
   html += '<div class="anno-add-inline"><h4>+ 添加新标注</h4>'
     + '<div class="field"><span class="field-label">抽构 (con) <span class="hint">如 *考、=其</span></span>'
-    + '<input class="field-input" id="new-con" placeholder="抽构"></div>'
+    + '<input class="field-input" id="new-con"></div>'
     + '<div class="field"><span class="field-label">参考抽构 (ref)</span>'
-    + '<input class="field-input" id="new-ref" placeholder="参考抽构"></div>'
+    + '<input class="field-input" id="new-ref"></div>'
     + '<div class="field"><span class="field-label">注释 (comm) <span class="hint">输入作者/关键词筛选参考文献</span></span>'
-    + '<textarea class="field-input" id="new-comm" rows="2" placeholder="注释" oninput="filterRefs()"></textarea></div>'
+    + '<textarea class="field-input" id="new-comm" rows="2" oninput="filterRefs()"></textarea></div>'
     + '<div class="ref-filter-row">'
-    + '<input class="ref-filter-input" id="ref-filter" placeholder="筛选参考文献…" oninput="filterRefs()">'
+    + '<input class="ref-filter-input" id="ref-filter" oninput="filterRefs()">'
     + '</div>'
     + '<div id="new-ref-suggestions" class="ref-suggestions"></div>'
     + '<button class="btn-primary btn-sm" onclick="obAddAnno()">保存</button>'
@@ -915,3 +916,4 @@ document.getElementById("batch-save-all").addEventListener("click", function() {
 initTheme();
 loadChars();
 loadPapers();
+if (typeof initWriter === "function") initWriter();

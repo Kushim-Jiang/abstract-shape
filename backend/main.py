@@ -8,8 +8,10 @@ from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, PlainTextResponse
 from pydantic import BaseModel
+
+from . import blocks, entrystore, refs, shape, sheettable
 
 DATA_DIR = Path(__file__).parent / "data"
 
@@ -200,42 +202,13 @@ def _build_cross_refs():
 
 
 def _codepoint_sort_key(entry: dict) -> tuple:
-    """按 Unicode 区块排序：URO → 兼容 → ExtA → ExtB → ..."""
+    """按 Unicode 区段排序：基本 → 兼容 → 部首 → 扩展A → 扩展B → …"""
     cp = entry.get("codepoint", "U+0")
     try:
         val = int(cp.replace("U+", ""), 16)
     except (ValueError, AttributeError):
-        return (99, 0)
-
-    # 定义区块优先级
-    if 0x4E00 <= val <= 0x9FFF:
-        block = 0  # URO
-    elif 0xF900 <= val <= 0xFAFF:
-        block = 1  # 兼容（CJK Compatibility）
-    elif 0xFA00 <= val <= 0xFAFF:
-        block = 1
-    elif 0x3400 <= val <= 0x4DBF:
-        block = 2  # ExtA
-    elif 0x20000 <= val <= 0x2A6DF:
-        block = 3  # ExtB
-    elif 0x2A700 <= val <= 0x2B73F:
-        block = 4  # ExtC
-    elif 0x2B740 <= val <= 0x2B81F:
-        block = 5  # ExtD
-    elif 0x2B820 <= val <= 0x2CEAF:
-        block = 6  # ExtE
-    elif 0x2CEB0 <= val <= 0x2EBEF:
-        block = 7  # ExtF
-    elif 0x30000 <= val <= 0x3134F:
-        block = 8  # ExtG
-    elif 0x31350 <= val <= 0x323AF:
-        block = 9  # ExtH
-    elif 0x2EBF0 <= val <= 0x2EE5F:
-        block = 10  # ExtI
-    else:
-        block = 99  # 其他
-
-    return (block, val)
+        return (len(blocks.BLOCKS), 0)
+    return blocks.sort_key(val)
 
 
 def _migrate_annotations():
@@ -762,6 +735,403 @@ def list_jianhuazi():
 @app.get("/api/ids")
 def list_ids():
     return {"ids": _load_json("ids.json").get("ids", {})}
+
+
+# ─── 抽象构形札记（Markdown 文档） ─────────────────────────
+#
+# 设计：文件即事实来源。每个字符一个目录，主文件 <char>/<char>.md。
+# 前端只负责把「标题 + 各行札记」转成结构化 JSON，其余 Markdown 原样回写。
+
+
+class NoteModel(BaseModel):
+    label: str = ""
+    con: str = ""
+    ref: str = ""
+    status: str = ""
+    comm: str = ""
+    refs: list[str] = []
+
+
+class EntrySaveRequest(BaseModel):
+    seq: int = 0              # 0 = 自动分配下一个条号
+    con: str = ""             # 抽构（IDS）
+    ref_con: str = ""         # 参考抽构
+    notes: str = ""           # 札记正文（Markdown）
+    # 引用列表。每项 `{id, pages}`：`id` 是文献编号，`pages` 是本次引用的页码。
+    # 也接受旧的纯字符串写法（`"L005"` / `"L005:12-15"`）。
+    refs: list[dict | str] = []
+
+
+class ShapeValidateRequest(BaseModel):
+    expr: str = ""
+
+
+def _doc_char_or_400(char: str) -> str:
+    """校验字符。单个字符就是一条记录的主键，不允许空值。"""
+    c = (char or "").strip()
+    if not c:
+        raise HTTPException(status_code=400, detail="字符不能为空")
+    if "\n" in c or "\r" in c:
+        raise HTTPException(status_code=400, detail="字符不能包含换行")
+    return c
+
+
+#: 抽构表索引（懒加载，构建约 3 秒）
+_sheet_index: dict | None = None
+
+
+def _get_sheet_index() -> dict:
+    global _sheet_index
+    if _sheet_index is None:
+        _sheet_index = sheettable.build_index()
+    return _sheet_index
+
+
+@app.get("/api/sheet/{char:path}")
+def get_sheet_entry(char: str):
+    """抽构表（input/abstract_*.txt）里该字的原始记录 + 变体 + 上级抽构。"""
+    return sheettable.lookup(_doc_char_or_400(char), _get_sheet_index())
+
+
+@app.get("/api/xiangxing")
+def get_xiangxing():
+    """象形部件的自然分类码（input/xiangxing.txt）。"""
+    return {"xiangxing": sheettable.load_xiangxing()}
+
+
+@app.get("/api/materials/{char:path}")
+def get_materials(char: str):
+    """右侧参考资料一次性打包：抽构表 / 广韵 / IES / 词表（上古·词表等）。"""
+    ch = _doc_char_or_400(char)
+
+    global _cross_refs
+    if _cross_refs is None:
+        _cross_refs = _build_cross_refs()
+
+    out: dict = {"char": ch, "sheet": None, "guangyun": [], "ies": [], "lexicon": []}
+
+    # 抽构表
+    try:
+        out["sheet"] = sheettable.lookup(ch, _get_sheet_index())
+    except Exception:
+        pass
+
+    # 广韵：谐声划分 + 声系
+    gy = _cross_refs.get("guangyun", {})
+    if isinstance(gy, dict) and ch in gy:
+        rows = gy[ch]
+        if isinstance(rows, dict):
+            rows = [rows]
+        out["guangyun"] = rows
+
+    # IES 中古音
+    ies = _cross_refs.get("ies", {})
+    if isinstance(ies, dict) and ch in ies:
+        v = ies[ch]
+        out["ies"] = v if isinstance(v, list) else [v]
+
+    # 词表 / 上古音：shanggu + jianhuazi + 象形分类
+    lex: list[dict] = []
+    sg = _cross_refs.get("shanggu", {})
+    if isinstance(sg, dict) and ch in sg:
+        lex.append({"source": "上古音", "data": sg[ch]})
+    jh = _cross_refs.get("jianhuazi", {})
+    if isinstance(jh, dict) and ch in jh:
+        lex.append({"source": "简化字", "data": jh[ch]})
+    xx = sheettable.load_xiangxing()
+    if ch in xx:
+        lex.append({"source": "象形分类", "data": xx[ch]})
+    out["lexicon"] = lex
+
+    return out
+
+
+# ─── 参考文献（BibTeX 式） ─────────────────────────────────
+
+
+@app.get("/api/refs")
+def list_refs(q: str = Query("")):
+    """全部文献（自建覆盖内置），带格式化引用文本。"""
+    items = refs.list_all(q)
+    for r in items:
+        r["citation"] = refs.citation(r)
+    return {"refs": items, "fields": refs.FIELDS, "types": refs.ENTRY_TYPES,
+            "stats": refs.stats()}
+
+
+@app.get("/api/refs/{rid:path}/bibtex")
+def ref_bibtex(rid: str):
+    """导出某条文献的 BibTeX。"""
+    r = refs.get(rid)
+    if not r:
+        raise HTTPException(status_code=404, detail=f"文献 {rid} 不存在")
+    return PlainTextResponse(refs.to_bibtex(r), media_type="text/plain; charset=utf-8")
+
+
+@app.get("/api/refs/{rid:path}")
+def get_ref(rid: str):
+    r = refs.get(rid)
+    if not r:
+        raise HTTPException(status_code=404, detail=f"文献 {rid} 不存在")
+    r = dict(r)
+    r["citation"] = refs.citation(r)
+    r["bibtex"] = refs.to_bibtex(r)
+    r["builtin"] = refs.is_builtin(r["id"])
+    return r
+
+
+@app.post("/api/refs")
+def save_ref(data: dict):
+    """新增 / 覆盖一条文献。"""
+    rec = refs.save(data)
+    rec = dict(rec)
+    rec["citation"] = refs.citation(rec)
+    rec["bibtex"] = refs.to_bibtex(rec)
+    rec["builtin"] = False
+    return {"status": "ok", "ref": rec}
+
+
+@app.delete("/api/refs/{rid:path}")
+def delete_ref(rid: str):
+    ok = refs.delete(rid)
+    if not ok:
+        raise HTTPException(
+            status_code=400,
+            detail="只能删除自建文献；内置文献来自上游 papers.json，请勿修改",
+        )
+    return {"status": "ok"}
+
+
+@app.get("/api/blocks")
+def list_blocks():
+    """Unicode 区段清单（前端左侧列表按此顺序排列）。"""
+    return {"blocks": blocks.as_list()}
+
+
+@app.get("/api/all-characters")
+def list_all_characters():
+    """全部汉字，按区段 + 码位排序；带上每个字已有的条数。"""
+    cnt = entrystore.counts()
+    out = []
+    for entry in _characters:
+        ch = entry["char"]
+        cp = entry.get("codepoint", "")
+        try:
+            val = int(cp.replace("U+", ""), 16)
+        except ValueError:
+            val = 0
+        out.append({
+            "char": ch,
+            "codepoint": cp,
+            "block": blocks.classify(val),
+            "entries": cnt.get(ch, 0),
+        })
+    return {"characters": out, "total": len(out)}
+
+
+@app.post("/api/shape/validate")
+def validate_shape(data: ShapeValidateRequest):
+    """校验抽构表达式（前端输入框实时调用）。"""
+    return shape.validate(data.expr)
+
+
+@app.get("/api/shape/grammar")
+def shape_grammar():
+    """抽构运算符表（供前端帮助与语法提示）。"""
+    return {
+        "operators": [
+            {
+                "char": op,
+                "name": shape.IDC.NAME[op],
+                "arity": arity,
+            }
+            for op, arity in shape.IDC.ARITY.items()
+        ]
+    }
+
+
+# ─── 条（entry）API ───────────────────────────────────────
+#
+# 一条 = 一行 ndjson，键是 (字, 条号)，前端引用写作 `丂-1`。
+
+
+@app.get("/api/entries/stats")
+def entries_stats():
+    """整体统计：共几条、覆盖几个字。"""
+    return entrystore.stats()
+
+
+@app.get("/api/entries")
+def list_entries(q: str = Query(""), only: str = Query("")):
+    """列出条。`q` 搜字符 / 抽构 / 札记；`only=有` 只列有内容的字。"""
+    counts_map = entrystore.counts()
+    query = (q or "").strip().lower()
+    out = []
+    for ch in entrystore.characters_with_entries():
+        es = entrystore.entries_of(ch)
+        if only == "count" and not es:
+            continue
+        for e in es:
+            if query and query not in ch.lower() \
+                    and query not in (e["con"] or "").lower() \
+                    and query not in (e["ref_con"] or "").lower() \
+                    and query not in (e["notes"] or "")[:4000].lower() \
+                    and not any(query in entrystore.ref_label(r).lower() for r in e["refs"]):
+                continue
+            out.append({
+                "key": entrystore.entry_key(ch, e["seq"]),
+                "char": ch,
+                "seq": e["seq"],
+                "con": e["con"],
+                "ref_con": e["ref_con"],
+                "notes": e["notes"],
+                "refs": e["refs"],
+                "refs_text": entrystore.refs_text(e["refs"]),
+                "summary": " ".join((e["notes"] or "").split())[:160],
+                "total": counts_map.get(ch, 0),
+            })
+    return {"entries": out, "count": len(out)}
+
+
+@app.get("/api/entries/{char:path}/counts")
+def entry_counts(char: str):
+    """一个字有几条 + 已用条号。"""
+    c = _doc_char_or_400(char)
+    es = entrystore.entries_of(c)
+    return {
+        "char": c,
+        "count": len(es),
+        "seqs": [e["seq"] for e in es],
+        "next_seq": entrystore.next_seq(c),
+    }
+
+
+@app.get("/api/entries/{char:path}/neighbors")
+def get_doc_neighbors(char: str):
+    """全部汉字序列里的上一条 / 下一条（按区段 + 码位）"""
+    c = _doc_char_or_400(char)
+    for i, entry in enumerate(_characters):
+        if entry["char"] == c:
+            return {
+                "prev": _characters[i - 1]["char"] if i > 0 else None,
+                "next": _characters[i + 1]["char"] if i < len(_characters) - 1 else None,
+                "index": i,
+                "total": len(_characters),
+            }
+    return {"prev": None, "next": None, "index": -1, "total": len(_characters)}
+
+
+@app.get("/api/entries/{char:path}")
+def get_char_entries(char: str):
+    """一个字的全部条 + 码位 / 区段 / 合并预览。"""
+    c = _doc_char_or_400(char)
+    es = entrystore.entries_of(c)
+
+    entry = _char_map.get(c)
+    cp = (entry or {}).get("codepoint", "")
+    try:
+        val = int(cp.replace("U+", ""), 16)
+    except ValueError:
+        val = 0
+
+    return {
+        "char": c,
+        "codepoint": cp,
+        "block": blocks.name_of(blocks.classify(val)) if cp else "",
+        "entries": es,
+        "count": len(es),
+        "next_seq": entrystore.next_seq(c),
+        "preview": entrystore.render_character(c),
+    }
+
+
+@app.post("/api/entries/{char:path}")
+def save_entry(char: str, data: EntrySaveRequest):
+    """新增 / 覆盖一条。`seq` 为 0 时自动分配下一个条号。"""
+    c = _doc_char_or_400(char)
+    check = entrystore.validate_entry(data.con, data.ref_con)
+    if not check["con"].get("ok"):
+        err = check["con"].get("error") or {}
+        raise HTTPException(
+            status_code=400,
+            detail=f"抽构格式错误：{err.get('message', '')}",
+        )
+    if not check["ref_con"].get("ok"):
+        err = check["ref_con"].get("error") or {}
+        raise HTTPException(
+            status_code=400,
+            detail=f"参考抽构格式错误：{err.get('message', '')}",
+        )
+    # 旧引用里填过的页码，本次没传就保留（避免前端只传 id 时抹掉页码）
+    old = entrystore.get_entry(c, data.seq) if data.seq else None
+    refs = data.refs
+    if old:
+        refs = entrystore.merge_legacy_refs(old.get("refs"), refs)
+
+    rec = entrystore.write_entry(
+        c, data.seq, con=data.con, ref_con=data.ref_con,
+        notes=data.notes, refs=refs,
+    )
+    return {
+        "status": "ok",
+        "entry": rec,
+        "key": entrystore.entry_key(c, rec["seq"]),
+        "preview": entrystore.render_character(c),
+        "count": entrystore.count_entries(c),
+        "shape": check,
+    }
+
+
+# 注意：更具体的路径必须声明在 `/api/entries/{char:path}` 之前，
+# 否则 {char:path}（path 转换器含 `/`）会把 `一/1` 整个吃掉，当成一个字叫「一/1」，
+# 于是单条删除静默返回 {"deleted": 0}，界面删了、切走再回来又出现。
+
+
+@app.delete("/api/entries/{char}/seq/{seq}")
+def delete_one_entry(char: str, seq: int):
+    """删掉单独一条。
+
+    路径用 `seq/` 前缀而不是 `/{char:path}/{seq}`：后者会和上面的
+    `/api/entries/{char:path}` 抢，导致永远匹配不到。
+    """
+    c = _doc_char_or_400(char)
+    return {"status": "ok", "deleted": entrystore.delete_entry(c, seq)}
+
+
+@app.delete("/api/entries/{char:path}")
+def delete_char_entries(char: str):
+    """删掉这个字的全部条。"""
+    c = _doc_char_or_400(char)
+    return {"status": "ok", "deleted": entrystore.delete_character(c)}
+
+
+@app.post("/api/entries/render")
+def render_entries(data: dict):
+    """不落盘，直接预览一组条（前端实时用）。"""
+    char = _doc_char_or_400(str(data.get("char") or ""))
+    entries = data.get("entries") or []
+    tmp: list[str] = []
+    lines = [f"# {char}", ""]
+    for i, e in enumerate(entries, start=1):
+        seq = e.get("seq") or i
+        lines.append(entrystore.entry_key(char, int(seq)))
+        lines.append("")
+        if e.get("con"):
+            lines.append(f"- 抽构：`{e['con']}`")
+        if e.get("ref_con"):
+            lines.append(f"- 参考抽构：`{e['ref_con']}`")
+        if e.get("con") or e.get("ref_con"):
+            lines.append("")
+        notes = (e.get("notes") or "").strip()
+        if notes:
+            lines.append(notes)
+            lines.append("")
+        refs = e.get("refs") or []
+        if refs:
+            lines.append("文献：" + entrystore.refs_text(refs))
+            lines.append("")
+    tmp.append("\n".join(lines).replace("\n\n\n", "\n\n").rstrip() + "\n")
+    return {"preview": tmp[0]}
 
 
 # ─── 静态文件服务 ──────────────────────────────────────────
