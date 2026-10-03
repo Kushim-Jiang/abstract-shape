@@ -39,8 +39,11 @@ A local editing UI for the abstract-shape corpus. Everything lives in one
 ndjson file, so the whole corpus is a single file and `git diff` stays readable.
 
 ```
-./start.ps1                    # picks a free port and opens the server
+./start.bat                    # picks a free port and opens the server
 ```
+
+`start.bat` first kills any previous instance still listening on
+ports 8000–8100, then reuses the lowest free port.
 
 Open **写作**. Three columns, all three widths draggable (double-click a divider
 to reset):
