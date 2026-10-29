@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>抽构标注管理</title>
-<link rel="stylesheet" href="style.css?v=24">
+<link rel="stylesheet" href="style.css?v=29">
 </head>
 <body>
 <div id="app">
@@ -35,8 +35,9 @@
           </div>
           <div class="ws-stat">
             <span id="doc-count" class="badge"></span>
-            <span id="doc-dirty" class="dirty-dot" style="display:none">●</span>
-          </div>
+              <span id="doc-verify-total" class="badge bad" style="display:none"></span>
+              <span id="doc-dirty" class="dirty-dot" style="display:none">●</span>
+            </div>
         </div>
         <div class="block-filter">
           <button class="blk-chip active" data-block="__all__">全部</button>
@@ -67,6 +68,7 @@
             <span id="doc-head-char" class="doc-head-char"></span>
             <span id="doc-head-block" class="doc-head-block"></span>
             <span class="we-spacer"></span>
+            <span id="doc-verify-state" class="verify-state"></span>
             <span id="doc-save-state" class="save-state"></span>
           </div>
 
@@ -93,11 +95,13 @@
             <!-- ── 右：参考资料 ── -->
             <aside class="we-col-right" id="pane-right">
               <div class="ref-tabs">
-                <button class="ref-tab active" data-panel="refs">文献</button>
+                <button class="ref-tab active" data-panel="refs">文献<span id="tab-refs-badge" class="tab-badge" style="display:none"></span></button>
                 <button class="ref-tab" data-panel="materials">资料</button>
+                <button class="ref-tab" data-panel="verify">核验<span id="tab-verify-badge" class="tab-badge" style="display:none"></span></button>
               </div>
               <div class="ref-panels">
                 <div class="ref-panel active" id="panel-refs"></div>
+                <div class="ref-panel" id="panel-verify"></div>
                 <div class="ref-panel" id="panel-materials">
                   <section class="mat-sec" id="sec-sheet">
                     <h4 class="mat-h">抽构表</h4>
@@ -202,9 +206,10 @@
     </div>
   </div>
 </div>
-<script src="markdown.js?v=9"></script>
-<script src="writer.js?v=24"></script>
-<script src="refs.js?v=6"></script>
+<script src="markdown.js?v=10"></script>
+<script src="format.js?v=1"></script>
+<script src="writer.js?v=31"></script>
+<script src="refs.js?v=11"></script>
 <script src="app.js?v=10"></script>
 </body>
 </html>

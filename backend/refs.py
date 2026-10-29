@@ -85,6 +85,8 @@ ENTRY_TYPES = [
 
 _BUILTIN: dict[str, dict] = {}
 _CUSTOM: dict[str, dict] = {}
+#: 重复的引用键：{id: [来源, …]}，来源是 `papers.json` / `references.ndjson`
+_DUPS: dict[str, list[str]] = {}
 _LOADED = False
 _MTIME: float = -1.0
 
@@ -97,6 +99,29 @@ def _norm_authors(value) -> list[str]:
         return []
     parts = re.split(r"\s+and\s+|[;;、]|,(?![^(]*\))", str(value))
     return [p.strip() for p in parts if p.strip()]
+
+
+#: 页码里当作区间 / 并列的各种写法
+_PAGE_DASHES = "—–−~～－"
+_PAGE_JOINERS = "，,、;；：:"
+
+
+def clean_pages(pages: str) -> str:
+    """页码统一成 `224-225+226-227`：`-` 是区间，`+` 连接各段。"""
+    s = str(pages or "")
+    for ch in _PAGE_DASHES:
+        s = s.replace(ch, "-")
+    s = re.sub(r"\s+", "", s)
+    s = re.sub(rf"[{_PAGE_JOINERS}]", "+", s)
+    s = re.sub(r"\++", "+", s)
+    s = re.sub(r"-+", "-", s)
+    return s.strip("+-")
+
+
+def format_pages(pages: str) -> str:
+    """显示用：`224-225+226-227` → `224—225、226—227`。"""
+    parts = [p.strip().replace("-", "—") for p in re.split(r"[+＋]", pages or "")]
+    return "、".join(p for p in parts if p)
 
 
 def _normalize(rec: dict) -> dict:
@@ -112,6 +137,8 @@ def _normalize(rec: dict) -> dict:
         out["journal"] = (rec.get("book_title") or "").strip()
     if not out["article_title"] and rec.get("raw_title"):
         out["article_title"] = ""
+    # 页码统一成 `224-225+226-227`（和札记里 [ref:C001.224-225+226] 的写法一致）
+    out["pages"] = clean_pages(out["pages"])
     out["_builtin"] = bool(rec.get("_builtin"))
     out["_citation"] = rec.get("citation", "")
     return out
@@ -127,11 +154,16 @@ def _load() -> None:
         return
 
     _BUILTIN.clear()
+    _DUPS.clear()
+    #: 每个引用键出现过的来源，用来找重复键
+    seen: dict[str, list[str]] = {}
+
     if BUILTIN_FILE.exists():
         data = json.loads(BUILTIN_FILE.read_text(encoding="utf-8"))
         for r in data.get("papers", []):
             rid = r.get("id")
             if rid:
+                seen.setdefault(rid, []).append("papers.json")
                 r = dict(r)
                 r["_builtin"] = True
                 _BUILTIN[rid] = _normalize(r)
@@ -149,13 +181,20 @@ def _load() -> None:
                     continue
                 rid = rec.get("id")
                 if rid:
+                    seen.setdefault(rid, []).append("references.ndjson")
                     _CUSTOM[rid] = _normalize(rec)
+
+    # 同一个键出现两次以上（文件里重复），或自建的键压在内置文献上
+    for rid, sources in seen.items():
+        if len(sources) > 1:
+            _DUPS[rid] = sources
+
     _LOADED = True
     _MTIME = mtime
 
 
 def _flush() -> None:
-    global _MTIME
+    global _MTIME, _LOADED
     STORE_DIR.mkdir(parents=True, exist_ok=True)
     tmp = STORE_FILE.with_name(STORE_FILE.name + ".tmp")
     with open(tmp, "w", encoding="utf-8", newline="\n") as f:
@@ -168,6 +207,8 @@ def _flush() -> None:
         _MTIME = STORE_FILE.stat().st_mtime
     except OSError:
         _MTIME = -1.0
+    # 写回后要让 `_load()` 重读一遍，否则「重复引用键」还是旧的
+    _LOADED = False
 
 
 # ─── 对外 ──────────────────────────────────────────────────
@@ -256,8 +297,19 @@ def stats() -> dict:
         "total": len(set(_BUILTIN) | set(_CUSTOM)),
         "builtin": len(_BUILTIN),
         "custom": len(_CUSTOM),
+        "duplicates": len(_DUPS),
         "file": STORE_FILE.name,
     }
+
+
+def duplicates() -> list[dict]:
+    """重复的引用键：`[{id, sources, count}]`。
+
+    同一份文件里重复写了同一个键，或自建文献用了内置文献已有的键，都算。
+    """
+    _load()
+    return [{"id": rid, "sources": sources, "count": len(sources)}
+            for rid, sources in sorted(_DUPS.items())]
 
 
 # ─── 引用格式化 ────────────────────────────────────────────
@@ -283,7 +335,7 @@ def citation(rec: dict) -> str:
     if rec.get("year"):
         bits.append(f"{rec['year']}年")
     if rec.get("pages"):
-        bits.append(f"第{rec['pages']}页")
+        bits.append(f"第{format_pages(rec['pages'])}页")
     return "，".join(bits)
 
 

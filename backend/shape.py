@@ -10,6 +10,9 @@
     <char>   ::= 汉字 | 汉字(变体)
 
   * 部件写作 `[A]`，带变体的写作 `[A(B)]`（括号里是**同形异字**的说明）；
+    输入时 `[ ]` 可以省略（`A` / `A(B)`），也可以只包住变体之外的写法
+    （`[A](B)`）；整个表达式外再包一层 `[]`（`[⿱一丂]`）和全角 `（）` 也认，
+    解析前先归一，`normalized` 一律输出「每个部件都带 `[]`」的形式；
   * 运算符是 IDC（表意文字描述符），见 `IDC.ARITY`；
   * `〾`(VA) 是一元运算符，表示近似形。
 
@@ -84,15 +87,20 @@ IDC_CHARS = IDC.ALL
 
 
 class ShapeSyntaxError(ValueError):
-    """抽构表达式语法错误，带出错位置。"""
+    """抽构表达式语法错误，带出错位置。
 
-    def __init__(self, message: str, pos: int):
+    `code` 给上层分类用：`bad-char`（非法字符）/ `arity`（运算符目数不够）/
+    `bracket`（括号不配对）/ `extra`（表达式后面还有内容）/ `empty` / `syntax`。
+    """
+
+    def __init__(self, message: str, pos: int, code: str = "syntax"):
         super().__init__(message)
         self.message = message
         self.pos = pos
+        self.code = code
 
     def as_dict(self) -> dict:
-        return {"message": self.message, "pos": self.pos}
+        return {"message": self.message, "pos": self.pos, "code": self.code}
 
 
 # ─── 节点 ──────────────────────────────────────────────────
@@ -172,19 +180,73 @@ class IDS:
 
 # ─── 解析 ──────────────────────────────────────────────────
 
+#: 输入法常见的全角标点，先换成半角再解析
+_FULLWIDTH_MAP = str.maketrans({
+    "（": "(", "）": ")", "［": "[", "］": "]",
+})
+
+
+def _skip_ws(text: str, i: int) -> int:
+    while i < len(text) and text[i].isspace():
+        i += 1
+    return i
+
+
+#: 当部件用时明显不合法的字符：ASCII 标点/数字 + 常见全角标点。
+#: 数据里 `〓`（占位）、`？`（存疑）、`⺀`（部首）这类是有意用法，不算非法。
+_BAD_UNIT_CHARS = set(
+    "!\"#$%&'*+,-./:;<=>@\\^_`{|}~"
+    "0123456789"
+    "，。、；：！（）［］｛｝【】《》〈〉「」『』“”‘’·…—～　"
+)
+
+
+def _parse_variant(text: str, i: int) -> tuple[str, int]:
+    """解析部件的变体括注 `(变体)`；没有括号就返回 `("", i)`。"""
+    j = _skip_ws(text, i)
+    if j >= len(text) or text[j] != "(":
+        return "", i
+    open_pos = j
+    j = _skip_ws(text, j + 1)
+    if j >= len(text):
+        raise ShapeSyntaxError("「(」之后表达式结束", open_pos, "bracket")
+    v = text[j]
+    if v in IDC_CHARS:
+        raise ShapeSyntaxError(f"括注里不能是运算符「{v}」", j, "bad-char")
+    if v in "()":
+        raise ShapeSyntaxError(f"括注里不能是「{v}」", j, "bad-char")
+    j = _skip_ws(text, j + 1)
+    if j >= len(text) or text[j] != ")":
+        raise ShapeSyntaxError("缺少配对的「)」", j, "bracket")
+    return v, j + 1
+
 
 def parse(expr: str) -> IDS:
-    """解析抽构表达式，失败抛 `ShapeSyntaxError`。"""
-    text = (expr or "").strip()
-    if not text:
-        raise ShapeSyntaxError("抽构为空", 0)
+    """解析抽构表达式，失败抛 `ShapeSyntaxError`。
 
+    容错的写法都会先归一：全角 `（）`、部件外包 `[]`（`[乙(ᄅ)]`、`[乙](ᄅ)`）、
+    整个表达式外包一层 `[]`（`[⿱九乙]`）。`normalized` 始终输出
+    `⿱[九][乙]` 这种「每个部件都带 `[]`」的形式，再解析一遍结果不变。
+    """
+    text = (expr or "").strip().translate(_FULLWIDTH_MAP)
+    if not text:
+        raise ShapeSyntaxError("抽构为空", 0, "empty")
+    try:
+        return _parse_text(text)
+    except ShapeSyntaxError:
+        # 整体外包一层 `[]`：`[⿱一丂]`
+        if len(text) > 2 and text[0] == "[" and text[-1] == "]":
+            return _parse_text(text[1:-1].strip())
+        raise
+
+
+def _parse_text(text: str) -> IDS:
     def parse_at(i: int) -> tuple[IDS | Char, int]:
         # 跳过空白
         while i < len(text) and text[i].isspace():
             i += 1
         if i >= len(text):
-            raise ShapeSyntaxError("表达式意外结束", i)
+            raise ShapeSyntaxError("表达式意外结束", i, "arity")
 
         c = text[i]
 
@@ -200,36 +262,41 @@ def parse(expr: str) -> IDS:
                         f"「{c}」（{IDC.NAME[c]}）需要 {arity} 个部件，"
                         f"只给了 {len(operands)} 个",
                         i,
+                        "arity",
                     )
                 node, i = parse_at(i)
                 operands.append(node)
             return IDS(c, operands), i
 
         if c in "()":
-            raise ShapeSyntaxError(f"意料之外的「{c}」", i)
+            raise ShapeSyntaxError(f"意料之外的「{c}」", i, "bad-char")
 
-        # 部件
-        i += 1
-        variant = ""
-        if i < len(text) and text[i] == "(":
-            open_pos = i
-            i += 1
-            while i < len(text) and text[i].isspace():
-                i += 1
+        # 部件：`九` / `[九]` / `乙(ᄅ)` / `[乙(ᄅ)]` / `[乙](ᄅ)`
+        bracketed = False
+        if c == "[":
+            bracketed = True
+            i = _skip_ws(text, i + 1)
             if i >= len(text):
-                raise ShapeSyntaxError("「(」之后表达式结束", open_pos)
-            v = text[i]
-            if v in IDC_CHARS:
-                raise ShapeSyntaxError(f"括注里不能是运算符「{v}」", i)
-            if v in "()":
-                raise ShapeSyntaxError(f"括注里不能是「{v}」", i)
+                raise ShapeSyntaxError("「[」之后表达式结束", i, "bracket")
+            c = text[i]
+            if c in IDC_CHARS:
+                raise ShapeSyntaxError(f"「[」里应该是部件，不是运算符「{c}」", i, "bad-char")
+            if c in "[]()":
+                raise ShapeSyntaxError(f"「[」里不能是「{c}」", i, "bad-char")
+
+        if c in _BAD_UNIT_CHARS:
+            raise ShapeSyntaxError(f"非法字符「{c}」", i, "bad-char")
+
+        i += 1
+        variant, i = _parse_variant(text, i)
+        if bracketed:
+            i = _skip_ws(text, i)
+            if i >= len(text) or text[i] != "]":
+                raise ShapeSyntaxError("缺少配对的「]」", i, "bracket")
             i += 1
-            while i < len(text) and text[i].isspace():
-                i += 1
-            if i >= len(text) or text[i] != ")":
-                raise ShapeSyntaxError("缺少配对的「)」", i)
-            i += 1
-            variant = v
+            if not variant:
+                # 变体也允许写在括号外：`[乙](ᄅ)`
+                variant, i = _parse_variant(text, i)
         return Char(c, variant), i
 
     node, pos = parse_at(0)
@@ -237,7 +304,7 @@ def parse(expr: str) -> IDS:
         pos += 1
     if pos < len(text):
         extra = text[pos:]
-        raise ShapeSyntaxError(f"表达式在「{extra[0]}」处有多余内容", pos)
+        raise ShapeSyntaxError(f"表达式在「{extra[0]}」处有多余内容", pos, "extra")
     if isinstance(node, Char):
         # 单个部件也是合法抽构
         return IDS(None, [node])
@@ -254,20 +321,32 @@ def try_parse(expr: str) -> IDS | None:
 
 # ─── 校验 ──────────────────────────────────────────────────
 
+#: 允许的表达式前缀：`=下`（同字/异体）、`~下`（参考）、`*下`（参考抽构）、`?下`（存疑）
+PREFIX_CHARS = "=~*?"
+
+
+def split_prefix(expr: str) -> tuple[str, str]:
+    """拆出前缀：`=下` → `("=", "下")`；没有前缀返回 `("", expr)`。"""
+    s = (expr or "").strip().translate(_FULLWIDTH_MAP)
+    if s and s[0] in PREFIX_CHARS:
+        return s[0], s[1:].strip()
+    return "", s
+
 
 def validate(expr: str, *, idc_only: bool = False) -> dict:
     """校验抽构表达式，返回结构化结果。
 
     参数:
-      expr      要校验的表达式
+      expr      要校验的表达式（可带 `= ~ * ?` 前缀）
       idc_only  只接受含运算符的表达式（纯单字不算「抽构」）
 
     返回::
 
         {
           "ok": bool,
-          "error": {"message": str, "pos": int} | None,
-          "normalized": str,          # 规范化后的表达式（部件加 []）
+          "error": {"message": str, "pos": int, "code": str} | None,
+          "normalized": str,          # 规范化后的表达式（部件加 []，前缀保留）
+          "prefix": str,              # `= ~ * ?` 里的一个，没有则为空
           "leaves": str,              # 叶子部件串
           "leaf_count": int,
           "depth": int,
@@ -276,19 +355,23 @@ def validate(expr: str, *, idc_only: bool = False) -> dict:
         }
     """
     text = (expr or "").strip()
-    if not text:
+    prefix, body = split_prefix(text)
+    if not body:
         return {
-            "ok": True, "error": None, "normalized": "", "leaves": "",
-            "leaf_count": 0, "depth": 0, "operators": {}, "warnings": [],
-            "empty": True,
+            "ok": True, "error": None, "normalized": "", "prefix": prefix,
+            "leaves": "", "leaf_count": 0, "depth": 0, "operators": {},
+            "warnings": [], "empty": True,
         }
 
     try:
-        node = parse(text)
+        node = parse(body)
     except ShapeSyntaxError as e:
+        err = e.as_dict()
+        err["pos"] += len(prefix)      # 前缀占一个字符，位置补回去
         return {
-            "ok": False, "error": e.as_dict(), "normalized": "", "leaves": "",
-            "leaf_count": 0, "depth": 0, "operators": {}, "warnings": [],
+            "ok": False, "error": err, "normalized": "", "prefix": prefix,
+            "leaves": "", "leaf_count": 0, "depth": 0, "operators": {},
+            "warnings": [],
         }
 
     warnings: list[str] = []
@@ -320,7 +403,8 @@ def validate(expr: str, *, idc_only: bool = False) -> dict:
     return {
         "ok": True,
         "error": None,
-        "normalized": repr(node),
+        "normalized": prefix + repr(node),
+        "prefix": prefix,
         "leaves": leaves,
         "leaf_count": len(chars),
         "depth": node.depth(),

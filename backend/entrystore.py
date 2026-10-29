@@ -4,17 +4,20 @@
 **一条札记 = 一行 ndjson**，键是 `(字, 条号)`：
 
     {"char": "丂", "seq": 1, "con": "⿱一丂", "ref_con": "*考",
-     "notes": "……", "refs": [{"id": "L005", "pages": "12—15"}]}
+     "notes": "…… [ref:C001.244-245+248]"}
 
   * `con`      抽构（IDS 表达式，`backend/shape.py` 校验，可空）
   * `ref_con`  参考抽构（同上，通常是 `=字` / `*字` 这种非 IDS 写法，不做校验）
-  * `notes`    札记正文（自由 Markdown）
-  * `refs`     引用列表。每条是一个 dict：
-                 `id`    文献编号（`backend/refs.py` 里文献的 id）
-                 `pages` **这一条引用所指的页码范围**，可空
-               `pages` 与文献自身的总页码（`refs.pages`）不同：
-               比如整本书 100—300 页，这里只引其中的 120—135 页。
-               旧数据里 `refs` 是纯字符串列表，载入时自动升格成 dict。
+  * `notes`    札记正文（自由 Markdown），**文献引用直接写在正文里**：
+                 `[ref:文献编号.页码]`，如 `[ref:C001.244-245+248]`
+                 表示 C001 的 244—245 页和 248 页，`[ref:C001]` 则只指文献。
+                 页码用 `-`（区间）/ `+`（并列）连接，`,`、`、`、`~`、`—` 等写法
+                 会归一成这两种。
+
+`refs` 是**从 `notes` 解析出来的派生字段**（`refs_from_notes`），不落盘：
+一条引用是 `{"id": "C001", "pages": "244-245+248"}`，`pages` 是这一条引用
+所指的页码（与文献自身的总页码 `refs.pages` 是两回事）。旧文件里如果
+还有无法从札记解析出的 `refs`，载入时保留，写回时也照旧保存。
 
 一个字可以有多条，条号从 1 开始，引用写作 `字-n`（如 `丂-1`）。
 
@@ -37,6 +40,16 @@ DATA_FILE = DATA_DIR / "abstract-shape.ndjson"
 
 #: 条号上限，防止写出离谱的记录
 MAX_SEQ = 999
+
+#: 札记正文里的文献引用：`[ref:C001.244-245+248]`、`[ref:C001]`
+REF_TOKEN_RE = re.compile(
+    r"\[\s*ref\s*[:：]\s*(?P<id>[^\[\]\.．\s]+)\s*"
+    r"(?:[.．]\s*(?P<pages>[^\[\]]*?))?\s*\]",
+    re.IGNORECASE,
+)
+
+#: 页码里允许的各种间隔写法，统一成 `+`
+_PAGE_SEP_RE = re.compile(r"[，,、;；：:]")
 
 
 # ─── 内存缓存 ──────────────────────────────────────────────
@@ -84,6 +97,38 @@ def _clean_refs(value) -> list[dict]:
     return out
 
 
+def _norm_pages(raw: str) -> str:
+    """页码写法归一：`—` `–` `~` 变 `-`（区间），`,` `、` `;` `：` 变 `+`（并列）。"""
+    s = (raw or "").strip()
+    for ch in ("—", "–", "−", "~", "～", "－"):
+        s = s.replace(ch, "-")
+    s = re.sub(r"\s+", "", s)
+    s = _PAGE_SEP_RE.sub("+", s)
+    s = re.sub(r"\++", "+", s)
+    s = re.sub(r"-+", "-", s)
+    return s.strip("+-")
+
+
+def refs_from_notes(notes: str) -> list[dict]:
+    """从札记正文解析 `[ref:编号.页码]`，按出现顺序去重。"""
+    out: list[dict] = []
+    seen: set[tuple[str, str]] = set()
+    for m in REF_TOKEN_RE.finditer(notes or ""):
+        rid = m.group("id").strip()
+        if not rid:
+            continue
+        pages = _norm_pages(m.group("pages") or "")
+        key = (rid, pages)
+        if key in seen:
+            continue
+        seen.add(key)
+        rec = {"id": rid}
+        if pages:
+            rec["pages"] = pages
+        out.append(rec)
+    return out
+
+
 def _norm_entry(rec: dict) -> dict | None:
     """把一行 json 规整成一条 entry；字为空则丢弃。"""
     ch = (rec.get("char") or "").strip()
@@ -95,25 +140,19 @@ def _norm_entry(rec: dict) -> dict | None:
         seq = 0
     if seq < 1:
         seq = 1
+    notes = rec.get("notes") or ""
+    refs = refs_from_notes(notes)
+    if not refs:
+        # 旧数据：札记里还没有 `[ref:…]` 写法时，退回文件里的 refs 字段
+        refs = _clean_refs(rec.get("refs"))
     return {
         "char": ch,
         "seq": seq,
         "con": (rec.get("con") or "").strip(),
         "ref_con": (rec.get("ref_con") or "").strip(),
-        "notes": rec.get("notes") or "",
-        "refs": _clean_refs(rec.get("refs")),
+        "notes": notes,
+        "refs": refs,
     }
-
-
-def merge_legacy_refs(old, new) -> list[dict]:
-    """保存时：旧引用里没填页码的，保留旧页码（前端只传 id 时别把页码抹掉）。"""
-    olds = {r["id"]: r for r in _clean_refs(old)}
-    out: list[dict] = []
-    for r in _clean_refs(new):
-        if not r.get("pages") and r["id"] in olds and olds[r["id"]].get("pages"):
-            r["pages"] = olds[r["id"]]["pages"]
-        out.append(r)
-    return out
 
 
 def _load() -> None:
@@ -175,7 +214,8 @@ def _flush() -> None:
                 out["ref_con"] = e["ref_con"]
             if e["notes"]:
                 out["notes"] = e["notes"]
-            if e["refs"]:
+            if e["refs"] and e["refs"] != refs_from_notes(e["notes"]):
+                # 旧数据里解析不出的引用才落盘；新写法以札记正文为准
                 out["refs"] = e["refs"]
             f.write(json.dumps(out, ensure_ascii=False) + "\n")
     tmp.replace(DATA_FILE)
@@ -224,6 +264,18 @@ def characters_with_entries() -> list[str]:
     return sorted({ch for ch, _ in _ENTRIES})
 
 
+def all_entries() -> list[dict]:
+    """全部条，按 (字, 条号) 排序。"""
+    _load()
+    return [dict(e) for _k, e in sorted(_ENTRIES.items())]
+
+
+def data_token() -> tuple[float, int]:
+    """数据版本号（文件 mtime + 条数），给上层的缓存做失效判断。"""
+    _load()
+    return (_MTIME, len(_ENTRIES))
+
+
 def stats() -> dict:
     _load()
     return {
@@ -254,19 +306,23 @@ def parse_key(key: str) -> tuple[str, int] | None:
 
 def write_entry(char: str, seq: int, con: str = "", ref_con: str = "",
                 notes: str = "", refs=None) -> dict:
-    """写入 / 覆盖一条。seq<=0 时自动分配下一个可用条号。"""
+    """写入 / 覆盖一条。seq<=0 时自动分配下一个可用条号。
+
+    引用一律从札记正文的 `[ref:编号.页码]` 解析；`refs` 参数只留给导入脚本用。
+    """
     _load()
     char = char.strip()
     seq = int(seq or 0)
     if seq < 1:
         seq = next_seq(char)
+    notes = notes or ""
     rec = {
         "char": char,
         "seq": seq,
         "con": (con or "").strip(),
         "ref_con": (ref_con or "").strip(),
-        "notes": notes or "",
-        "refs": _clean_refs(refs),
+        "notes": notes,
+        "refs": refs_from_notes(notes) if refs is None else _clean_refs(refs),
     }
     _ENTRIES[(char, seq)] = rec
     _flush()
@@ -340,7 +396,8 @@ def render_character(char: str) -> str:
         if e["notes"].strip():
             lines.append(e["notes"].strip())
             lines.append("")
-        if e["refs"]:
+        if e["refs"] and e["refs"] != refs_from_notes(e["notes"]):
+            # 札记里写了 `[ref:…]` 的不再单列，正文里已经能看到
             lines.append("文献：" + refs_text(e["refs"]))
             lines.append("")
     return "\n".join(lines).replace("\n\n\n", "\n\n").rstrip() + "\n"

@@ -50,15 +50,59 @@ to reset):
 
 | Column | Contents |
 | --- | --- |
-| left | the full character list (97712), grouped by Unicode block, paginated 100/page; each row shows how many notes that character has |
-| middle | the note editor: 抽构 / 参考抽构 / 札记 / 参考文献, with an 编辑·预览 toggle |
-| right | 文献 (BibTeX-style reference editor) and 资料 (抽构表 / 广韵 / IES / 词表, read-only) |
+| left | the full character list (97712), grouped by Unicode block, paginated 100/page; each row shows how many notes that character has, and the block chips carry a red count of 核验 problems (`基本 3`) |
+| middle | the note editor: 抽构 / 参考抽构 / 札记, with an 编辑·预览 toggle |
+| right | 文献 (BibTeX-style reference editor), 资料 (抽构表 / 广韵 / IES / 词表, read-only) and 核验 (what is wrong with the current character) |
 
 Keyboard: `Ctrl+S` save, `Ctrl+E` toggle edit/preview, `Ctrl+↑` `Ctrl+↓` previous
 / next character, `Ctrl+G` jump to a character.
 
 The `▶ 未写` button jumps to the first character in the current filter that has
 no notes yet.
+
+### Shape input formatting
+
+抽构 / 参考抽构 are formatted as you type (same inputs in 标注 / 甲骨文):
+
+* full-width `（）［］` become half-width, spaces are dropped;
+* once the expression parses, the canonical form is written back with every
+  component in brackets — `⿰木木` → `⿰[木][木]`, `⿱九乙（ᄅ）` → `⿱[九][乙(ᄅ)]`,
+  `=下` → `=[下]` (the `= ~ * ?` prefix is kept);
+* the parser accepts the tolerant spellings (`⿱九乙`, `[⿱九乙]`, `[乙](ᄅ)`), so
+  the formatted text always parses again;
+* the caret keeps its place measured in "meaningful" characters, and IME
+  composition is never touched mid-word.
+
+Characters that cannot be a component (`, . : ; !` ASCII punctuation, digits,
+full-width punctuation) raise `非法字符` instead of being silently accepted.
+
+### Verification (核验)
+
+`backend/verify.py` checks every note and the right column's 核验 tab lists what
+it finds for the current character; the left block chips show the whole-corpus
+count per Unicode block, and the toolbar shows the current character's count.
+Fields with problems are outlined in red.
+
+| Code | Level | Rule |
+| --- | --- | --- |
+| `bad-char` | error | a component is punctuation / a digit |
+| `arity` | error | an IDC operator has the wrong number of operands |
+| `bracket` / `extra` | error | brackets do not pair, or there is trailing junk |
+| `missing-unit` | warning | a component `[下]` has no record of its own whose 抽构 is `[下]` |
+| `dup-unit` | error | two or more records use the same shape as their 抽构 — `[下]`, `⿰[虫][下]`, anything; only one may own it, the rest must be `=…` |
+| `no-ref` | error | a cited reference id does not exist |
+| `page-range` | error | a cited page falls outside the reference's own `pages` |
+
+Reference pages use the same notation as the inline citations: `224-225+226-227`
+(`-` = range, `+` = separate spans). The 文献 form converts `— — 、` etc. on
+input and the backend re-normalizes on save, so both sides always compare
+apples to apples; a citation is accepted only if each of its spans fits inside
+one registered span.
+
+Reference **keys** are checked globally too: the same key written twice in
+`references.ndjson`, or a custom record re-using a built-in key, shows up as
+「引用键重复」 in the 文献 tab and at the bottom of 核验. Citing the same
+reference several times inside one note is fine.
 
 ### Data model
 
@@ -68,7 +112,7 @@ keyed by `(character, seq)`:
 
 ```json
 {"char": "丂", "seq": 1, "con": "⿱一丂", "ref_con": "*考",
- "notes": "……", "refs": [{"id": "L005", "pages": "12—15"}]}
+ "notes": "…… [ref:C001.244-245+248]"}
 ```
 
 | Field | Meaning |
@@ -77,15 +121,28 @@ keyed by `(character, seq)`:
 | `seq` | note number within that character, from 1; referenced as `丂-1` |
 | `con` | the abstract shape — an IDS expression, validated by `backend/shape.py` |
 | `ref_con` | a comparative shape; `=字` / `*字` are annotation conventions and skip IDS validation |
-| `notes` | the note body, free Markdown |
-| `refs` | citations; `id` is the reference key, `pages` is **the range cited here** |
+| `notes` | the note body, free Markdown; citations are written inline (see below) |
 
-A character can have any number of notes. `pages` on a citation is distinct from
-the reference's own page range (`refs.pages`): a book may span 100–300 while a
-particular note cites only 120–135.
+### Citations
 
-Plain-string citations (`"L005"`, `"L005:12-15"`) are still accepted and are
-upgraded on load, so older files keep working.
+Citations are part of the note body — there is no separate reference list per note:
+
+| Syntax | Meaning |
+| --- | --- |
+| `[ref:C001]` | the reference, no particular page |
+| `[ref:C001.244-245+248]` | C001, pp. 244–245 and 248 |
+| `[ref:C001.12+15-16]` | C001, p. 12 and pp. 15–16 |
+
+`-` separates the ends of a range, `+` joins separate spans; `,` `、` `;` `~` `—`
+are normalized to those two when the note is saved. Page numbers here are
+**the pages cited by this note**, distinct from the reference's own page range
+(`refs.pages`): a book may span 100–300 while a particular note cites only
+120–135. In the preview each citation becomes a chip that opens the reference
+in the 文献 panel.
+
+The API still returns `refs` on every note
+(`[{"id": "C001", "pages": "244-245+248"}]`), but it is parsed from `notes` on
+save and load — the file has no `refs` field unless an older file already did.
 
 ### Abstract-shape syntax
 

@@ -43,6 +43,14 @@ function mdInline(text, opts) {
     return '<span class="md-reflink" data-ref="' + id + '">[' + id + "]</span>";
   });
 
+  // 文献引用 [ref:C001.244-245+248]（编号.页码；页码 - 区间 / + 并列）
+  s = s.replace(/\[\s*ref\s*[:：]\s*([^\[\]\.．\s]+)\s*(?:[.．]\s*([^\[\]]*?))?\s*\]/gi,
+    function (_, id, pages) {
+      const pg = (pages || "").replace(/\s+/g, "").replace(/[—–~～－]/g, "-");
+      return '<span class="md-reflink" data-ref="' + id + '" title="文献 ' + id +
+        (pg ? "，第 " + pg + " 页" : "") + '">' + id + (pg ? ":" + pg : "") + "</span>";
+    });
+
   // 图片 ![alt](src)
   s = s.replace(/!\[([^\]]*)\]\(([^)\s]+)\)/g, function (_, alt, src) {
     if (!/^(https?:|data:image)/i.test(src)) return esc0(alt) + " (" + esc0(src) + ")";

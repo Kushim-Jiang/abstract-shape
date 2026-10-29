@@ -11,7 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, PlainTextResponse
 from pydantic import BaseModel
 
-from . import blocks, entrystore, refs, shape, sheettable
+from . import blocks, entrystore, refs, shape, sheettable, verify
 
 DATA_DIR = Path(__file__).parent / "data"
 
@@ -756,10 +756,7 @@ class EntrySaveRequest(BaseModel):
     seq: int = 0              # 0 = 自动分配下一个条号
     con: str = ""             # 抽构（IDS）
     ref_con: str = ""         # 参考抽构
-    notes: str = ""           # 札记正文（Markdown）
-    # 引用列表。每项 `{id, pages}`：`id` 是文献编号，`pages` 是本次引用的页码。
-    # 也接受旧的纯字符串写法（`"L005"` / `"L005:12-15"`）。
-    refs: list[dict | str] = []
+    notes: str = ""           # 札记正文（Markdown）；文献引用写成 `[ref:C001.244-245+248]`
 
 
 class ShapeValidateRequest(BaseModel):
@@ -856,7 +853,7 @@ def list_refs(q: str = Query("")):
     for r in items:
         r["citation"] = refs.citation(r)
     return {"refs": items, "fields": refs.FIELDS, "types": refs.ENTRY_TYPES,
-            "stats": refs.stats()}
+            "stats": refs.stats(), "duplicates": refs.duplicates()}
 
 
 @app.get("/api/refs/{rid:path}/bibtex")
@@ -1062,15 +1059,9 @@ def save_entry(char: str, data: EntrySaveRequest):
             status_code=400,
             detail=f"参考抽构格式错误：{err.get('message', '')}",
         )
-    # 旧引用里填过的页码，本次没传就保留（避免前端只传 id 时抹掉页码）
-    old = entrystore.get_entry(c, data.seq) if data.seq else None
-    refs = data.refs
-    if old:
-        refs = entrystore.merge_legacy_refs(old.get("refs"), refs)
-
+    # 引用是从札记正文的 `[ref:…]` 解析出来的，不单独传
     rec = entrystore.write_entry(
-        c, data.seq, con=data.con, ref_con=data.ref_con,
-        notes=data.notes, refs=refs,
+        c, data.seq, con=data.con, ref_con=data.ref_con, notes=data.notes,
     )
     return {
         "status": "ok",
@@ -1126,12 +1117,40 @@ def render_entries(data: dict):
         if notes:
             lines.append(notes)
             lines.append("")
-        refs = e.get("refs") or []
-        if refs:
+        derived = entrystore.refs_from_notes(e.get("notes") or "")
+        refs = e.get("refs") or derived
+        if refs and refs != derived:
+            # 札记里没写 `[ref:…]`、只带着旧 refs 字段的，才单列
             lines.append("文献：" + entrystore.refs_text(refs))
             lines.append("")
     tmp.append("\n".join(lines).replace("\n\n\n", "\n\n").rstrip() + "\n")
     return {"preview": tmp[0]}
+
+
+# ─── 核验 API ─────────────────────────────────────────────
+#
+# 抽构 / 参考抽构 / 引用的自洽检查，规则见 `backend/verify.py`。
+
+
+def _codepoint_of(char: str) -> int:
+    entry = _char_map.get(char) or {}
+    cp = (entry.get("codepoint") or "").replace("U+", "")
+    try:
+        return int(cp, 16)
+    except ValueError:
+        return 0
+
+
+@app.get("/api/verify")
+def verify_summary():
+    """全库核验计数：总数 + 每个 Unicode 区段的报错数（左栏区段标签用）。"""
+    return verify.summary(_codepoint_of)
+
+
+@app.get("/api/verify/{char:path}")
+def verify_character(char: str):
+    """一个字的核验结果（右栏「核验」标签用）。"""
+    return verify.check_char(_doc_char_or_400(char))
 
 
 # ─── 静态文件服务 ──────────────────────────────────────────

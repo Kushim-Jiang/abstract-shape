@@ -21,16 +21,47 @@ const REF_FIELDS = [
 
 const REF = {
   list: [],
+  byId: null,        // 全部文献的 {id: 记录}，预览里的参考文献表要用
+  dups: [],          // 重复的引用键 [{id, sources, count}]
   current: null,
   filter: "",
   editing: false,
   initialized: false
 };
 
+// 顶层 const 不会挂到 window 上，writer.js 里是 `window.REF && …`，这里显式导出
+window.REF = REF;
+
 async function loadRefs() {
   const d = await wrGet("/refs?q=" + encodeURIComponent(REF.filter));
   REF.list = d.refs || [];
+  REF.dups = d.duplicates || [];
   renderRefPanel();
+  renderRefDupBadge();
+}
+
+/** 文献标签上的重复引用键计数 */
+function renderRefDupBadge() {
+  const el = $("tab-refs-badge");
+  if (!el) return;
+  const n = (REF.dups || []).length;
+  el.style.display = n ? "" : "none";
+  el.textContent = String(n);
+  el.className = "tab-badge" + (n ? " bad" : "");
+}
+
+/** 重复引用键的提示条（只有过滤词为空时才和列表一起显示） */
+function refDupBanner() {
+  const dups = REF.dups || [];
+  if (!dups.length || REF.filter) return "";
+  const items = dups.map(function (d) {
+    const srcs = (d.sources || []).join("、");
+    return "<li><code>" + MD.esc(d.id) + "</code>　" +
+      (d.count > 1 ? "出现 " + d.count + " 次" : "") +
+      (srcs ? "（" + MD.esc(srcs) + "）" : "") + "</li>";
+  }).join("");
+  return '<div class="ref-dup-warn"><div class="rdw-title">⚠ 引用键重复 ' +
+    dups.length + " 个</div><ul>" + items + "</ul></div>";
 }
 
 function renderRefPanel() {
@@ -62,6 +93,7 @@ function renderRefPanel() {
     '<button class="btn-sm" id="ref-reload">⟳</button>' +
     '<span class="badge" style="margin-left:auto">' + REF.list.length + "</span>" +
     "</div>" +
+    refDupBanner() +
     '<div class="ref-list">' +
     (items || '<div class="empty">没有文献</div>') +
     "</div>";
@@ -135,6 +167,14 @@ function renderRefForm(r) {
         ' <span class="bib">' + bib + "</span></label>" +
         '<textarea data-key="' + key + '" rows="3">' + MD.esc(r[key] || "") + "</textarea></div>";
     }
+    if (key === "pages") {
+      // 页码和札记里的引用写法一致：`224-225+226-227`
+      return '<div class="ref-field"><label>' + label +
+        ' <span class="bib">' + bib + "</span>" +
+        '<span class="hint">224-225+226-227</span></label>' +
+        '<input type="text" data-key="pages" value="' + MD.esc(r[key] || "") +
+        '" placeholder="224-225+226-227"></div>';
+    }
     return '<div class="ref-field"><label>' + label +
       ' <span class="bib">' + bib + "</span></label>" +
       '<input type="text" data-key="' + key + '" value="' + MD.esc(r[key] || "") + '"></div>';
@@ -195,7 +235,10 @@ function collectRefForm() {
   const box = $("panel-refs");
   const rec = { id: "", type: "article", author: [], editor: [] };
   box.querySelectorAll("[data-key]").forEach(function (el) {
-    rec[el.getAttribute("data-key")] = el.value.trim();
+    const key = el.getAttribute("data-key");
+    let v = el.value.trim();
+    if (key === "pages") v = normPages(v);
+    rec[key] = v;
   });
   box.querySelectorAll(".ref-authors").forEach(function (wrap) {
     const key = wrap.getAttribute("data-for");
@@ -205,8 +248,35 @@ function collectRefForm() {
   return rec;
 }
 
+/** 页码规范：`224—225、226` → `224-225+226`（`-` 区间，`+` 分段，和札记里的引用一致） */
+function normPages(str) {
+  return String(str || "")
+    .replace(/[—–−~～－]/g, "-")
+    .replace(/\s+/g, "")
+    .replace(/[，,、;；：:]/g, "+")
+    .replace(/\++/g, "+")
+    .replace(/-+/g, "-")
+    .replace(/^[+\-]+|[+\-]+$/g, "");
+}
+
 function bindRefForm() {
   const box = $("panel-refs");
+
+  // 页码输入：全角/破折号立刻转成 `-`、`、` 转 `+`（等长替换，光标不动）
+  const pagesEl = box.querySelector('[data-key="pages"]');
+  if (pagesEl) {
+    pagesEl.addEventListener("input", function () {
+      const v = pagesEl.value;
+      const n = v.replace(/[—–−~～－]/g, "-").replace(/[，,、;；：:]/g, "+");
+      if (n === v) return;
+      const pos = pagesEl.selectionStart;
+      pagesEl.value = n;
+      pagesEl.setSelectionRange(pos, pos);
+    });
+    pagesEl.addEventListener("blur", function () {
+      pagesEl.value = normPages(pagesEl.value);
+    });
+  }
 
   box.querySelectorAll(".ref-add-author").forEach(function (btn) {
     btn.addEventListener("click", function () {
@@ -235,6 +305,7 @@ function bindRefForm() {
       const r = await wrSend("/refs", rec);
       REF.current = r.ref;
       REF.editing = false;
+      REF.byId = null;               // 文献改过，预览里的参考文献表要重新取
       await loadRefs();
       setSaveState("文献已保存", "ok");
       setTimeout(function () { setSaveState(""); }, 1600);
@@ -253,6 +324,7 @@ function bindRefForm() {
       await wrSend("/refs/" + encodeURIComponent(REF.current.id), undefined, "DELETE");
       REF.current = null;
       REF.editing = false;
+      REF.byId = null;
       await loadRefs();
     } catch (e) { alert(e.message); }
   });
@@ -276,10 +348,36 @@ function toBibtexClient(r) {
 
 // ─── 对外入口 ─────────────────────────────────────────────
 
+/** 全部文献的 `{id: 记录}`（不受搜索过滤影响），首次调用时拉一次。 */
+REF.ensureAll = async function () {
+  if (REF.byId) return REF.byId;
+  const d = await wrGet("/refs");
+  const map = {};
+  (d.refs || []).forEach(function (r) { map[r.id] = r; });
+  REF.byId = map;
+  return map;
+};
+
+/** 打开某条文献（预览里点 `[ref:…]` 时用）。编号不存在就什么都不做。 */
+REF.open = async function (id) {
+  const key = (id || "").trim();
+  if (!key) return;
+  if (window.switchRefTab) window.switchRefTab("refs");
+  try {
+    const rec = await wrGet("/refs/" + encodeURIComponent(key));
+    const hit = REF.list.find(function (r) { return r.id === key; });
+    if (hit && hit.citation) rec.citation = hit.citation;
+    REF.current = rec;
+    REF.editing = true;
+    renderRefPanel();
+  } catch (e) { /* 没有这个编号：保持列表不动 */ }
+};
+
 REF.init = function () {
   if (REF.initialized) return;
   REF.initialized = true;
   loadRefs().catch(function () {});
+  REF.ensureAll().catch(function () {});
 };
 
 if (document.readyState === "loading") {

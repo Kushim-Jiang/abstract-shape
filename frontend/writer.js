@@ -19,6 +19,8 @@ const WR = {
   pane: "edit",       // 左框当前显示：edit | preview
   dirty: false,
   neighborInfo: { prev: null, next: null, index: -1, total: 0 },
+  verify: null,        // 当前字的核验结果
+  verifySummary: null, // 全库核验计数（左栏区段标签）
   initialized: false,
   page: 1,            // 左侧列表当前页
   perPage: 100,       // 每页多少个字
@@ -73,13 +75,24 @@ async function loadBlocks() {
 function renderBlockChips() {
   const box = $("block-chips");
   if (!box) return;
+  const by = (WR.verifySummary && WR.verifySummary.by_block) || {};
   box.innerHTML = WR.blocks.map(function (b) {
-    return '<button class="blk-chip" data-block="' + b.key + '">' + MD.esc(b.name) + "</button>";
+    const n = by[b.key] || 0;
+    return '<button class="blk-chip" data-block="' + b.key + '">' + MD.esc(b.name) +
+      (n ? '<span class="blk-err" title="' + n + ' 处核验问题">' + n + "</span>" : "") +
+      "</button>";
   }).join("");
 
   // 顶部「全部 / ✓ 已写」与下方区段共用同一套点击逻辑
   // （「▶ 未写」是动作按钮，不是筛选，单独处理，这里排除掉）
+  bindBlockChipClicks();
+}
+
+/** 给区段 chip 绑点击（只绑一次；innerHTML 重画后新元素再绑） */
+function bindBlockChipClicks() {
   document.querySelectorAll(".block-filter .blk-chip[data-block]").forEach(function (el) {
+    if (el.getAttribute("data-bound")) return;
+    el.setAttribute("data-bound", "1");
     el.addEventListener("click", function () {
       WR.blockFilter = el.getAttribute("data-block");
       document.querySelectorAll(".block-filter .blk-chip[data-block]").forEach(function (c) {
@@ -144,10 +157,12 @@ function renderCharList() {
   }
   box.innerHTML = shown.map(function (c) {
     const n = c.entries || 0;
+    const bad = ((WR.verifySummary && WR.verifySummary.by_char) || {})[c.char] || 0;
     return '<div class="doc-item' + (c.char === WR.current ? " active" : "") +
       '" data-char="' + MD.esc(c.char) + '">' +
       '<span class="di-char">' + c.char + "</span>" +
       '<span class="di-cp">' + MD.esc((c.codepoint || "").replace("U+", "")) + "</span>" +
+      (bad ? '<span class="di-err" title="' + bad + ' 处核验问题"></span>' : "") +
       (n ? '<span class="di-n">' + n + "</span>" : "") +
       "</div>";
   }).join("");
@@ -332,6 +347,7 @@ async function openDoc(char) {
   setPane(WR.pane);
   markDirty(false);
   setSaveState(d.count ? d.count + " 条" : "还没有条");
+  refreshVerify();
 
   // 右侧参考资料（异步，不阻塞）
   wrGet("/materials/" + encodeURIComponent(char)).then(function (m) {
@@ -525,7 +541,7 @@ function renderEditor() {
   const cur = es.filter(function (e) { return e.seq === WR.activeSeq; })[0];
   const isNew = !cur;
   // 新建时用一条空白草稿渲染表单，seq 留 0（保存时后端分配条号）
-  const form = cur || { seq: 0, con: "", ref_con: "", notes: "", refs: [] };
+  const form = cur || { seq: 0, con: "", ref_con: "", notes: "" };
 
   box.innerHTML =
     '<div class="note-form">' +
@@ -556,16 +572,17 @@ function renderEditor() {
   bindEditor();
   if (!isNew) renderShapeStatus(WR.shape);
   refreshPreview();
+  applyVerifyMarks();
 }
 
 function renderEntryForm(e) {
-  const raw = (e.refs && e.refs.length) ? e.refs : [{ id: "", pages: "" }];
-  const refRows = raw.map(refRowHtml).join("");
   return (
     '<div class="ent-body">' +
 
     '<div class="nf-row">' +
-    '<label class="nf-label">抽构</label>' +
+    '<label class="nf-label">抽构' +
+    '<span class="hint">输入时自动补 []、全角（）转 ()</span>' +
+    "</label>" +
     '<input id="ent-con" class="nf-input nf-con ent-con" type="text" spellcheck="false" ' +
     'value="' + MD.esc(e.con || "") + '">' +
     '<div id="ent-shape-status" class="shape-status"></div>' +
@@ -583,84 +600,22 @@ function renderEntryForm(e) {
     MD.esc(e.notes || "") + "</textarea>" +
     "</div>" +
 
-    '<div class="nf-row">' +
-    '<label class="nf-label">参考文献</label>' +
-    '<div class="ent-ref-head">' +
-    '<span class="erh-id">文献编号</span>' +
-    '<span class="erh-pg">起始页</span>' +
-    '<span class="erh-pg">终止页</span>' +
-    '<span class="erh-del"></span>' +
-    "</div>" +
-    '<div class="ent-refs" id="ent-refs">' + refRows + "</div>" +
-    '<button class="btn-sm ent-ref-add" style="align-self:flex-start">＋ 加一条文献</button>' +
-    "</div>" +
-
     "</div>"
   );
 }
 
-/** 一行引用：文献编号 + 起始页 + 终止页 */
-function refRowHtml(r) {
-  const id = (typeof r === "string") ? r : (r.id || "");
-  const pages = (typeof r === "string") ? "" : (r.pages || "");
-  const span = splitPages(pages);
-  return '<div class="ent-ref-row">' +
-    '<input class="ent-ref-input" type="text" value="' + MD.esc(id) + '">' +
-    '<input class="ent-ref-pg1" type="text" value="' + MD.esc(span[0]) + '">' +
-    '<input class="ent-ref-pg2" type="text" value="' + MD.esc(span[1]) + '">' +
-    '<button class="btn-sm ent-ref-del">✕</button>' +
-    "</div>";
-}
-
-/** 把页码范围拆成 [起, 止]；只有一个页时止为空 */
-function splitPages(pages) {
-  const s = (pages || "").trim();
-  if (!s) return ["", ""];
-  const m = s.split(/\s*(?:[—–~～\-]|至|到)\s*/);
-  if (m.length >= 2) return [m[0].trim(), m.slice(1).join("-").trim()];
-  return [s, ""];
-}
-
-/** [起, 止] 合回页码范围字符串 */
-function joinPages(pg1, pg2) {
-  const a = (pg1 || "").trim();
-  const b = (pg2 || "").trim();
-  if (a && b) return a === b ? a : a + "—" + b;
-  return a || b || "";
-}
-
-/** `L005` 或 `L005:12—15` */
-function refLabel(r) {
-  const id = (typeof r === "string") ? r : (r.id || "");
-  const pages = (typeof r === "string") ? "" : ((r.pages || "").trim());
-  return pages ? id + ":" + pages : id;
-}
-
-/** 把四个框收回 WR.doc.entries 里当前那条；新建时返回一个草稿对象 */
+/** 把各框收回 WR.doc.entries 里当前那条；新建时返回一个草稿对象 */
 function collectEntry() {
   const d = WR.doc;
   if (!d) return null;
   const cur = (d.entries || []).filter(function (e) { return e.seq === WR.activeSeq; })[0];
-  const target = cur || { seq: 0, con: "", ref_con: "", notes: "", refs: [] };
+  const target = cur || { seq: 0, con: "", ref_con: "", notes: "" };
   const conEl = $("ent-con");
   if (conEl) target.con = conEl.value.trim();
   const rcEl = $("ent-ref-con");
   if (rcEl) target.ref_con = rcEl.value.trim();
   const ntEl = $("ent-notes");
   if (ntEl) target.notes = ntEl.value;
-  const refs = [];
-  document.querySelectorAll("#ent-refs .ent-ref-row").forEach(function (row) {
-    const idEl = row.querySelector(".ent-ref-input");
-    const p1 = row.querySelector(".ent-ref-pg1");
-    const p2 = row.querySelector(".ent-ref-pg2");
-    const id = idEl ? idEl.value.trim() : "";
-    const pages = joinPages(p1 ? p1.value : "", p2 ? p2.value : "");
-    if (!id && !pages) return;
-    const rec = { id: id };
-    if (pages) rec.pages = pages;
-    refs.push(rec);
-  });
-  target.refs = refs;
   return target;
 }
 
@@ -699,47 +654,27 @@ function bindEditor() {
 
   // 实时：校验抽构 + 刷新预览
   const con = $("ent-con");
-  if (con) con.addEventListener("input", onEntryInput);
+  if (con) {
+    con.addEventListener("input", onEntryInput);
+    if (window.SHAPEFMT) SHAPEFMT.bind(con, { onFormatted: afterShapeFormat });
+  }
   const rc = $("ent-ref-con");
-  if (rc) rc.addEventListener("input", onEntryInput);
+  if (rc) {
+    rc.addEventListener("input", onEntryInput);
+    if (window.SHAPEFMT) SHAPEFMT.bind(rc, { onFormatted: afterShapeFormat });
+  }
   const nt = $("ent-notes");
   if (nt) nt.addEventListener("input", onEntryInput);
-
-  // 参考文献行
-  const addRef = box.querySelector(".ent-ref-add");
-  if (addRef) addRef.addEventListener("click", function () {
-    const wrap = $("ent-refs");
-    const div = document.createElement("div");
-    div.className = "ent-ref-row";
-    div.innerHTML = '<input class="ent-ref-input" type="text">' +
-      '<input class="ent-ref-pg1" type="text">' +
-      '<input class="ent-ref-pg2" type="text">' +
-      '<button class="btn-sm ent-ref-del">✕</button>';
-    wrap.appendChild(div);
-    div.querySelector(".ent-ref-input").focus();
-    bindRefRowDel(div);
-    onEntryInput();
-  });
-  box.querySelectorAll(".ent-ref-row").forEach(bindRefRowDel);
-}
-
-function bindRefRowDel(row) {
-  const btn = row.querySelector(".ent-ref-del");
-  if (!btn) return;
-  btn.addEventListener("click", function () {
-    const wrap = $("ent-refs");
-    if (wrap.querySelectorAll(".ent-ref-row").length <= 1) {
-      row.querySelectorAll("input").forEach(function (i) { i.value = ""; });
-    } else {
-      row.remove();
-    }
-    onEntryInput();
-  });
 }
 
 let _shapeTimer = null;
+let _shapeToken = 0;
 
-function onEntryInput() {
+function onEntryInput(ev) {
+  const el = ev && ev.target;
+  if (el && window.SHAPEFMT && (el.id === "ent-con" || el.id === "ent-ref-con")) {
+    SHAPEFMT.normalizeChars(el);   // 全角括号立刻转掉，规范写法等停顿后再回写
+  }
   markDirty(true);
   setSaveState("未保存");
   collectEntry();
@@ -748,14 +683,25 @@ function onEntryInput() {
   _shapeTimer = setTimeout(validateShape, 220);
 }
 
+/** 抽构 / 参考抽构被自动格式化后：收回草稿、刷新预览 */
+function afterShapeFormat() {
+  markDirty(true);
+  setSaveState("未保存");
+  collectEntry();
+  refreshPreview();
+}
+
 async function validateShape() {
+  const token = ++_shapeToken;
   const conEl = $("ent-con");
   if (!conEl) return;
   const expr = conEl.value.trim();
   if (!expr) { WR.shape = null; renderShapeStatus(null); return; }
   try {
-    WR.shape = await wrSend("/shape/validate", { expr: expr });
-    renderShapeStatus(WR.shape);
+    const res = await wrSend("/shape/validate", { expr: expr });
+    if (token !== _shapeToken) return;          // 输入还在继续，丢掉过期结果
+    WR.shape = res;
+    renderShapeStatus(res);
   } catch (e) { /* 校验失败不打断输入 */ }
 }
 
@@ -785,11 +731,224 @@ function renderShapeStatus(res) {
   }
 }
 
+// ─── 预览：自动生成参考文献表 ──────────────────────────────
+//
+// 札记里的 `[ref:C001.244-245+248]` 会把 C001 收集进文末的参考文献表，
+// 按 第一作者 → 年份 → 篇名 排序。
+
+const CITE_ID_RE = /\[\s*ref\s*[:：]\s*([^\[\]\.．\s]+)/gi;
+const CITE_COLLATOR = new Intl.Collator("zh-Hans-CN");
+
+let _previewToken = 0;
+
+/** 该字所有条里引到的文献编号，去重、保持出现顺序 */
+function citedIds(d) {
+  const ids = [];
+  ((d && d.entries) || []).forEach(function (e) {
+    const notes = e.notes || "";
+    let m;
+    CITE_ID_RE.lastIndex = 0;
+    while ((m = CITE_ID_RE.exec(notes))) {
+      if (ids.indexOf(m[1]) < 0) ids.push(m[1]);
+    }
+  });
+  return ids;
+}
+
+/** 排序键：第一作者 / 年份 / 篇名；文献库里没有的排最后 */
+function citeSortKeys(rec) {
+  if (!rec) return ["\uffff", "", ""];
+  return [
+    (rec.author && rec.author[0]) || "",
+    String(rec.year || rec.date || ""),
+    rec.article_title || rec.book_title || "",
+  ];
+}
+
+function cmpCite(a, b) {
+  const ka = citeSortKeys(a.rec);
+  const kb = citeSortKeys(b.rec);
+  for (let i = 0; i < ka.length; i++) {
+    const c = CITE_COLLATOR.compare(ka[i], kb[i]);
+    if (c) return c;
+  }
+  return CITE_COLLATOR.compare(a.id, b.id);
+}
+
 function refreshPreview() {
   if (!WR.doc) return;
   const el = $("doc-preview");
   if (!el) return;
+  const token = ++_previewToken;
   el.innerHTML = MD.render(renderMarkdown(WR.doc));
+  appendCiteList(el, token);
+}
+
+async function appendCiteList(box, token) {
+  const ids = citedIds(WR.doc);
+  if (!ids.length) return;
+
+  let map = window.REF && window.REF.byId;
+  if (!map && window.REF && window.REF.ensureAll) {
+    try { map = await window.REF.ensureAll(); } catch (e) { map = {}; }
+  }
+  if (token !== _previewToken || !box.isConnected) return;   // 预览已经重画过
+
+  const items = ids.map(function (id) {
+    let rec = null;
+    if (map) {
+      rec = map[id] || null;
+      if (!rec) {
+        const hit = Object.keys(map).find(function (k) {
+          return k.toLowerCase() === id.toLowerCase();
+        });
+        rec = hit ? map[hit] : null;
+      }
+    }
+    return { id: id, rec: rec };
+  }).sort(cmpCite);
+
+  const sec = document.createElement("section");
+  sec.className = "cite-list";
+  sec.innerHTML = '<div class="cite-h">参考文献</div>' +
+    items.map(function (it) {
+      const body = (it.rec && it.rec.citation)
+        ? MD.esc(it.rec.citation)
+        : '<span class="cite-missing">文献库里没有这个编号</span>';
+      return '<div class="cite-row"><span class="cite-id">' + MD.esc(it.id) +
+        '</span><span class="cite-text">' + body + "</span></div>";
+    }).join("");
+  box.appendChild(sec);
+}
+
+// ─── 核验（右栏「核验」+ 左栏区段计数） ────────────────────
+//
+// 规则在 `backend/verify.py`：抽构/参考抽构的格式、部件是否单独有记录、
+// 引用页码是否越界。核验面板只放当前字，全库计数挂在左栏区段标签上。
+
+async function refreshVerify() {
+  const d = WR.doc;
+  if (!d) return;
+  let res = null;
+  try {
+    res = await wrGet("/verify/" + encodeURIComponent(d.char));
+  } catch (e) { res = null; }
+  if (!WR.doc || WR.doc.char !== d.char) return;   // 已经切到别的字了
+  WR.verify = res;
+  renderVerifyPanel();
+  applyVerifyMarks();
+  renderVerifyBadge();
+}
+
+async function loadVerifySummary() {
+  try {
+    WR.verifySummary = await wrGet("/verify");
+  } catch (e) {
+    WR.verifySummary = null;
+  }
+  renderBlockChips();
+  renderVerifyTotal();
+  renderCharList();
+  renderVerifyPanel();
+}
+
+function renderVerifyTotal() {
+  const total = (WR.verifySummary && WR.verifySummary.total) || 0;
+
+  const badge = $("doc-verify-total");
+  if (badge) {
+    badge.style.display = total ? "" : "none";
+    badge.textContent = total ? "核验 " + total : "";
+    badge.title = total ? "全库共 " + total + " 处核验问题" : "";
+  }
+
+  const all = document.querySelector('.block-filter .blk-chip[data-block="__all__"]');
+  if (all) {
+    all.innerHTML = "全部" + (total
+      ? '<span class="blk-err" title="全库 ' + total + ' 处核验问题">' + total + "</span>"
+      : "");
+  }
+  // 区段 chip 的可点击性会随 innerHTML 变化丢失，这里重绑
+  bindBlockChipClicks();
+}
+
+function renderVerifyBadge() {
+  const n = (WR.verify && WR.verify.count) || 0;
+  const bad = (WR.verify && WR.verify.error_count) || 0;
+
+  const tab = $("tab-verify-badge");
+  if (tab) {
+    tab.style.display = n ? "" : "none";
+    tab.textContent = String(n);
+    tab.className = "tab-badge" + (bad ? " bad" : "");
+  }
+
+  const st = $("doc-verify-state");
+  if (st) {
+    st.textContent = n ? "核验 " + n + " 处" : "";
+    st.className = "verify-state" + (n ? (bad ? " bad" : " warn") : "");
+  }
+}
+
+function renderVerifyPanel() {
+  const box = $("panel-verify");
+  if (!box) return;
+  const v = WR.verify;
+  const issues = (v && v.issues) || [];
+  const title = !v ? "未核验"
+    : issues.length ? issues.length + " 处问题" : "没有发现问题";
+
+  let html = '<div class="vf-head"><span class="vf-title">' + title + "</span>" +
+    '<span class="we-spacer"></span>' +
+    '<button class="btn-sm" id="vf-reload" title="重新核验">⟳</button></div>';
+
+  html += issues.length
+    ? issues.map(function (i) {
+      const key = (WR.doc ? WR.doc.char : "") + "-" + i.seq;
+      return '<div class="vf-item ' + MD.esc(i.level) + '" data-seq="' + i.seq + '">' +
+        '<div class="vf-where"><code>' + MD.esc(key) + "</code>" +
+        '<span class="vf-field">' + MD.esc(i.field_name || i.field) + "</span>" +
+        '<span class="vf-code">' + MD.esc(i.code) + "</span></div>" +
+        '<div class="vf-msg">' + MD.esc(i.message) + "</div></div>";
+    }).join("")
+    : '<div class="empty">这个字没有核验问题</div>';
+
+  // 全局问题：文献引用键重复（不挂在某个字上）
+  const dups = (WR.verifySummary && WR.verifySummary.ref_dups) || [];
+  if (dups.length) {
+    html += '<div class="vf-global"><div class="vf-g-title">引用键重复 ' + dups.length +
+      " 个</div><ul>" + dups.map(function (d) {
+        const srcs = (d.sources || []).join("、");
+        return "<li><code>" + MD.esc(d.id) + "</code>" +
+          (srcs ? "　" + MD.esc(srcs) : "") + "</li>";
+      }).join("") + "</ul></div>";
+  }
+
+  box.innerHTML = html;
+
+  const re = $("vf-reload");
+  if (re) re.addEventListener("click", function () { refreshVerify(); });
+  box.querySelectorAll(".vf-item").forEach(function (el) {
+    el.addEventListener("click", function () {
+      const seq = parseInt(el.getAttribute("data-seq"), 10);
+      if (!seq || seq === WR.activeSeq) return;
+      collectEntry();
+      WR.activeSeq = seq;
+      renderEditor();
+    });
+  });
+}
+
+/** 当前条有问题的字段标红 */
+function applyVerifyMarks() {
+  const issues = (WR.verify && WR.verify.issues) || [];
+  const bad = {};
+  issues.forEach(function (i) { if (i.seq === WR.activeSeq) bad[i.field] = true; });
+
+  [["con", "ent-con"], ["ref_con", "ent-ref-con"], ["notes", "ent-notes"]].forEach(function (p) {
+    const el = $(p[1]);
+    if (el) el.classList.toggle("is-bad", !!bad[p[0]]);
+  });
 }
 
 /** 该字所有条合并的 Markdown（预览用） */
@@ -806,9 +965,6 @@ function renderMarkdown(d) {
     if (e.ref_con) lines.push("- 参考抽构：`" + e.ref_con + "`");
     if (e.con || e.ref_con) lines.push("");
     if ((e.notes || "").trim()) { lines.push(e.notes.trim(), ""); }
-    if (e.refs && e.refs.length) {
-      lines.push("文献：" + e.refs.map(refLabel).filter(Boolean).join("、"), "");
-    }
   });
   return lines.join("\n").replace(/\n\n\n/g, "\n\n").replace(/\s+$/, "") + "\n";
 }
@@ -830,6 +986,14 @@ async function saveEntry() {
     const el = $("ent-con"); if (el) el.focus();
     return;
   }
+  // 保存时也落规范写法（`⿱[九][乙]`），免得手快在格式化前就保存
+  if (check.normalized) payload.con = check.normalized;
+  if (payload.ref_con) {
+    try {
+      const rc = await wrSend("/shape/validate", { expr: payload.ref_con });
+      if (rc.ok && rc.normalized) payload.ref_con = rc.normalized;
+    } catch (e) { /* 参考抽构的报错交给后端 */ }
+  }
 
   try {
     setSaveState("保存中…");
@@ -838,7 +1002,6 @@ async function saveEntry() {
       con: payload.con || "",
       ref_con: payload.ref_con || "",
       notes: payload.notes || "",
-      refs: payload.refs || [],
     });
     const saved = r.entry;
     const i = (d.entries || []).findIndex(function (x) { return x.seq === saved.seq; });
@@ -854,6 +1017,8 @@ async function saveEntry() {
     setTimeout(function () { setSaveState(""); }, 1600);
     renderEditor();
     bumpCharCount(d.char, d.count);
+    refreshVerify();
+    loadVerifySummary();
   } catch (e) {
     setSaveState(e.message || "保存失败", "err");
   }
@@ -884,6 +1049,8 @@ async function deleteEntry() {
   setSaveState("已删除");
   renderEditor();
   bumpCharCount(d.char, d.count);
+  refreshVerify();
+  loadVerifySummary();
 }
 
 /** 更新左侧列表里的条数 */
@@ -951,6 +1118,20 @@ function gotoChar() {
 
 // ─── 事件绑定 ────────────────────────────────────────────
 
+/** 右侧面板切换：`refs`（文献） / `materials`（资料） / `verify`（核验） */
+function switchRefTab(name) {
+  if (name !== "materials" && name !== "verify") name = "refs";
+  document.querySelectorAll("#view-write .ref-tab").forEach(function (t) {
+    t.classList.toggle("active", t.getAttribute("data-panel") === name);
+  });
+  document.querySelectorAll("#view-write .ref-panel").forEach(function (p) {
+    p.classList.toggle("active", p.id === "panel-" + name);
+  });
+  if (name === "refs" && window.REF && window.REF.init) window.REF.init();
+}
+
+window.switchRefTab = switchRefTab;
+
 function initWriter() {
   if (WR.initialized) return;
   WR.initialized = true;
@@ -978,16 +1159,17 @@ function initWriter() {
 
   // 右侧参考资料面板切换
   document.querySelectorAll("#view-write .ref-tab").forEach(function (tab) {
-    tab.addEventListener("click", function () {
-      const name = tab.getAttribute("data-panel");
-      document.querySelectorAll("#view-write .ref-tab").forEach(function (t) {
-        t.classList.toggle("active", t === tab);
-      });
-      document.querySelectorAll("#view-write .ref-panel").forEach(function (p) {
-        p.classList.toggle("active", p.id === "panel-" + name);
-      });
-      if (name === "refs" && window.REF && window.REF.init) window.REF.init();
-    });
+    tab.addEventListener("click", function () { switchRefTab(tab.getAttribute("data-panel")); });
+  });
+
+  // 预览里点 `[ref:C001.244-245+248]` → 右侧打开该文献
+  const prev = $("doc-preview");
+  if (prev) prev.addEventListener("click", function (ev) {
+    const chip = ev.target.closest ? ev.target.closest(".md-reflink") : null;
+    const id = chip && chip.getAttribute("data-ref");
+    if (!id) return;
+    ev.preventDefault();
+    if (window.REF && window.REF.open) window.REF.open(id);
   });
 
   document.addEventListener("keydown", function (e) {
@@ -1014,5 +1196,6 @@ function initWriter() {
   (async function () {
     await loadBlocks();
     await loadCharList(true);
+    loadVerifySummary();
   })();
 }
