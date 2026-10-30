@@ -1,3 +1,33 @@
+/* ─── 中文字面（供下面三套字体使用）────────────────────
+   字体栈是「逐字符」匹配的：只要西文字体里有这个字形，标点就会被它抢走
+   （“ ” — · … 在 Times New Roman 里都有）。所以这里用 unicode-range
+   把「汉字 + 中文标点」单独绑给方正字体，其余字符（拉丁字母、数字）
+   才落到字体栈后面的 Times New Roman。 */
+@font-face {
+  font-family: "FZ-Song";
+  src: local("方正书宋_GBK"), local("FZShuSong-Z01"), local("SimSun");
+  unicode-range: U+00B7, U+2014-2015, U+2018-201D, U+2026,
+                 U+2E80-2FDF, U+2FF0-2FFF, U+3000-303F, U+31C0-31EF,
+                 U+3400-4DBF, U+4E00-9FFF, U+F900-FAFF, U+FE10-FE19,
+                 U+FE30-FE4F, U+FF00-FFEF, U+20000-2FA1F;
+}
+@font-face {
+  font-family: "FZ-FangSong";
+  src: local("方正仿宋_GBK"), local("FZFangSong-Z02"), local("FangSong"), local("SimSun");
+  unicode-range: U+00B7, U+2014-2015, U+2018-201D, U+2026,
+                 U+2E80-2FDF, U+2FF0-2FFF, U+3000-303F, U+31C0-31EF,
+                 U+3400-4DBF, U+4E00-9FFF, U+F900-FAFF, U+FE10-FE19,
+                 U+FE30-FE4F, U+FF00-FFEF, U+20000-2FA1F;
+}
+@font-face {
+  font-family: "FZ-XiaoBiaoSong";
+  src: local("方正小标宋_GBK"), local("FZXiaoBiaoSong-B05"), local("SimHei"), local("SimSun");
+  unicode-range: U+00B7, U+2014-2015, U+2018-201D, U+2026,
+                 U+2E80-2FDF, U+2FF0-2FFF, U+3000-303F, U+31C0-31EF,
+                 U+3400-4DBF, U+4E00-9FFF, U+F900-FAFF, U+FE10-FE19,
+                 U+FE30-FE4F, U+FF00-FFEF, U+20000-2FA1F;
+}
+
 /* ─── CSS 变量（主题） ──────────────────────────────── */
 :root {
   --bg: #0d1117;
@@ -13,6 +43,13 @@
   --success-hover: #2ea043;
   --danger: #f85149;
   --overlay-bg: rgba(0,0,0,.7);
+
+  /* 字体：三套中文面孔，西文统一 Times New Roman
+     前面是只吃汉字的 FZ-* 字面（见文件顶部 @font-face 的 unicode-range），
+     Times New Roman 放在其后，负责拉丁字母与数字 */
+  --font-body: "FZ-Song", "Times New Roman", "SimSun", serif;
+  --font-quote: "FZ-FangSong", "Times New Roman", "FangSong", "SimSun", serif;
+  --font-bold: "FZ-XiaoBiaoSong", "Times New Roman", "SimHei", sans-serif;
 }
 .light {
   --bg: #ffffff;
@@ -62,7 +99,7 @@
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--text2); }
 body {
-  font-family: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+  font-family: var(--font-body);
   background: var(--bg);
   color: var(--text);
   min-height: 100vh;
@@ -79,6 +116,7 @@ a:hover { text-decoration: underline; }
 button {
   cursor: pointer; border: 1px solid var(--border); border-radius: 6px;
   padding: 6px 14px; font-size: 13px; font-weight: 500;
+  font-family: inherit;
   background: var(--bg4); color: var(--text); transition: .2s;
 }
 button:hover { background: var(--bg3); }
@@ -86,6 +124,7 @@ input, textarea, select {
   background: var(--bg); border: 1px solid var(--border); color: var(--text);
   border-radius: 6px; padding: 8px 12px; font-size: 14px; width: 100%;
   outline: none; transition: .2s;
+  font-family: inherit;
 }
 input:focus, textarea:focus { border-color: var(--accent); }
 textarea { font-family: inherit; resize: vertical; }
@@ -912,10 +951,12 @@ body.col-resizing * { cursor: col-resize !important; }
 .markdown-body p { margin: 0 0 12px; text-indent: 0; }
 .markdown-body ul, .markdown-body ol { margin: 0 0 12px; padding-left: 26px; }
 .markdown-body li { margin-bottom: 4px; }
+/* 引文（Markdown 引用块）用方正仿宋_GBK */
 .markdown-body blockquote {
   margin: 0 0 12px; padding: 6px 14px;
   border-left: 3px solid var(--accent2); color: var(--text2);
   background: var(--bg3); border-radius: 0 4px 4px 0;
+  font-family: var(--font-quote);
 }
 .markdown-body code {
   background: var(--bg4); padding: 1px 5px; border-radius: 3px;
@@ -1098,6 +1139,30 @@ body.col-resizing * { cursor: col-resize !important; }
 /* 手改 Markdown 时，隐藏预览与底部面板，给编辑区留出全部空间 */
 #view-write.raw-mode .we-panes,
 #view-write.raw-mode .doc-freeform { display: none; }
+
+/* ═══ 加粗：一律换用方正小标宋_GBK ═══════════════════════
+   该字体本身即粗面（只有 Regular 一个字重），若再叠加 font-weight
+   的合成加粗会糊成一团，故这里统一压回 normal，靠字体本身显粗。
+   新加的加粗级 UI 文案请补进下面的选择器列表。 */
+h1, h2, h3, h4, h5, h6, th, b, strong,
+.markdown-body h1, .markdown-body h2, .markdown-body h3,
+.markdown-body h4, .markdown-body h5, .markdown-body h6, .markdown-body th,
+.site-title,
+#anno-char-label,
+.xref-title, .xref-series,
+.data-table th,
+.write-empty h3,
+.doc-head-char, .doc-title-input,
+.nf-fallback-title, .nf-label, .nf-input-lg,
+.verify-state.bad,
+.we-switch-btn.active, .ref-tab.active, .ent-bar.active,
+.mat-h, .cite-list .cite-h,
+.ref-field > label,
+.vf-title, .vf-field,
+.ref-dup-warn .rdw-title, .vf-global .vf-g-title {
+  font-family: var(--font-bold);
+  font-weight: normal;
+}
 
 /* ─── 窄屏：清单收到上方 / 预览折叠 ─────────────────── */
 @media (max-width: 900px) {
