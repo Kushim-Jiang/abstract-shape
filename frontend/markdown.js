@@ -51,10 +51,16 @@ function mdInline(text, opts) {
         (pg ? "，第 " + pg + " 页" : "") + '">' + id + (pg ? ":" + pg : "") + "</span>";
     });
 
-  // 图片 ![alt](src)
-  s = s.replace(/!\[([^\]]*)\]\(([^)\s]+)\)/g, function (_, alt, src) {
-    if (!/^(https?:|data:image)/i.test(src)) return esc0(alt) + " (" + esc0(src) + ")";
-    return '<img src="' + src + '" alt="' + alt + '">';
+  // 图片 ![alt](src){w=320} —— 可选的 `{w=…}` / `{width=…}` 是显示宽度（px）
+  s = s.replace(/!\[([^\]]*)\]\(([^)\s]+)\)(\{[^}\n]*\})?/g, function (_, alt, src, attr) {
+    if (!/^(https?:|data:image|\/|\.\.?\/)/i.test(src)) {
+      return esc0(alt) + " (" + esc0(src) + ")";
+    }
+    const m = /(?:^|\s)w(?:idth)?\s*=\s*(\d+)/i.exec((attr || "").replace(/[{}]/g, " "));
+    const w = m ? Math.max(8, parseInt(m[1], 10) || 0) : 0;
+    return '<span class="md-fig"' + (w ? ' data-w="' + w + '" style="width:' + w + 'px"' : "") +
+      '><img src="' + src + '" alt="' + alt + '">' +
+      '<span class="md-fig-handle" title="拖动调整宽度"></span></span>';
   });
 
   // 链接 [text](url)

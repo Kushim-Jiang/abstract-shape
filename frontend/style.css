@@ -938,7 +938,33 @@ body.col-resizing * { cursor: col-resize !important; }
   border: 1px solid var(--border); padding: 6px 10px; text-align: left;
 }
 .markdown-body th { background: var(--bg4); font-weight: 600; }
-.markdown-body img { max-width: 100%; }
+
+/* 内嵌图片：与文字按「中线」对齐（不是基线对齐），并支持拖动改宽度 */
+.markdown-body img { max-width: 100%; vertical-align: middle; }
+.markdown-body .md-fig {
+  position: relative; display: inline-block;
+  max-width: 100%; vertical-align: middle;
+  line-height: 0; border-radius: 4px;
+}
+.markdown-body .md-fig > img {
+  display: block; width: 100%; max-width: 100%; height: auto;
+  vertical-align: middle; border-radius: 4px;
+}
+.markdown-body .md-fig-handle {
+  position: absolute; right: -6px; bottom: -6px;
+  width: 12px; height: 12px; box-sizing: border-box;
+  background: var(--accent); border: 2px solid var(--bg2);
+  border-radius: 3px; cursor: nwse-resize;
+  opacity: 0; transition: opacity .12s;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, .35);
+}
+.markdown-body .md-fig:hover .md-fig-handle,
+.markdown-body .md-fig.active .md-fig-handle,
+.markdown-body .md-fig.resizing .md-fig-handle { opacity: 1; }
+.markdown-body .md-fig.active { outline: 1px solid var(--accent); outline-offset: 2px; }
+.markdown-body .md-fig.resizing { outline: 1px dashed var(--accent); outline-offset: 2px; }
+.markdown-body .md-fig.resizing > img { user-select: none; pointer-events: none; }
+
 .markdown-body a { color: var(--accent); }
 .markdown-body .md-check { margin-right: 6px; }
 .markdown-body .md-reflink {

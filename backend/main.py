@@ -3,7 +3,10 @@
 核心数据结构：每个字符可以有多个 con/ref/comm 标注
 """
 
+import base64
+import hashlib
 import json
+import re
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Query
@@ -763,6 +766,10 @@ class ShapeValidateRequest(BaseModel):
     expr: str = ""
 
 
+class ImageSaveRequest(BaseModel):
+    data: str = ""            # `data:image/png;base64,…` 形式的图片
+
+
 def _doc_char_or_400(char: str) -> str:
     """校验字符。单个字符就是一条记录的主键，不允许空值。"""
     c = (char or "").strip()
@@ -1151,6 +1158,85 @@ def verify_summary():
 def verify_character(char: str):
     """一个字的核验结果（右栏「核验」标签用）。"""
     return verify.check_char(_doc_char_or_400(char))
+
+
+# ─── 图片（札记里粘贴的图） ──────────────────────────────────
+#
+# 前端粘贴图片时先把 base64 直接插进正文，随后 POST 到这里落盘，
+# 正文里的 data URI 再换成本接口返回的 URL。按内容哈希命名，重复粘贴同一张图
+# 不会产生新文件。
+
+IMAGE_DIR = Path(__file__).resolve().parent.parent / "abstract-shape" / "images"
+IMAGE_MAX_BYTES = 12 * 1024 * 1024
+
+_IMAGE_MIME_EXT = {
+    "image/png": ".png",
+    "image/jpeg": ".jpg",
+    "image/jpg": ".jpg",
+    "image/gif": ".gif",
+    "image/webp": ".webp",
+    "image/svg+xml": ".svg",
+    "image/bmp": ".bmp",
+}
+
+_IMAGE_DATA_RE = re.compile(r"^data:(image/[\w.+-]+);base64,(.+)$", re.IGNORECASE | re.DOTALL)
+
+
+@app.post("/api/images")
+def save_image(payload: ImageSaveRequest):
+    """把 data URI 形式的图片存成文件，返回可直接用在 Markdown 里的 URL。"""
+    data = (payload.data or "").strip()
+    m = _IMAGE_DATA_RE.match(data)
+    if not m:
+        raise HTTPException(status_code=400, detail="不是合法的图片 data URI")
+    mime = m.group(1).lower()
+    ext = _IMAGE_MIME_EXT.get(mime)
+    if not ext:
+        raise HTTPException(status_code=400, detail=f"不支持的图片类型：{mime}")
+    try:
+        raw = base64.b64decode(m.group(2), validate=False)
+    except Exception:
+        raise HTTPException(status_code=400, detail="图片数据解码失败")
+    if not raw:
+        raise HTTPException(status_code=400, detail="图片内容为空")
+    if len(raw) > IMAGE_MAX_BYTES:
+        raise HTTPException(status_code=413, detail="图片太大")
+
+    # 文件名 = sha1 前 8 位十六进制（够短好读）。万一撞名就往后多取几位，
+    # 内容相同则直接复用已有文件。
+    digest = hashlib.sha1(raw).hexdigest()
+    IMAGE_DIR.mkdir(parents=True, exist_ok=True)
+    path = None
+    for n in (8, 12, 16, 20, 40):
+        candidate = IMAGE_DIR / (digest[:n] + ext)
+        if not candidate.exists():
+            path = candidate
+            break
+        if candidate.read_bytes() == raw:
+            path = candidate           # 同一张图重复粘贴
+            break
+    if path is None:
+        raise HTTPException(status_code=500, detail="图片命名冲突，请重试")
+    name = path.name
+    if not path.exists():
+        path.write_bytes(raw)
+    return {"status": "ok", "url": f"/api/images/{name}", "name": name, "size": len(raw)}
+
+
+@app.get("/api/images/{name:path}")
+def get_image(name: str):
+    """取回已保存的图片。"""
+    root = IMAGE_DIR.resolve()
+    try:
+        path = (IMAGE_DIR / name).resolve()
+        path.relative_to(root)
+    except (OSError, ValueError):
+        raise HTTPException(status_code=404, detail="图片不存在")
+    if not path.is_file():
+        raise HTTPException(status_code=404, detail="图片不存在")
+    return FileResponse(
+        path, headers={"Cache-Control": "public, max-age=31536000, immutable"}
+    )
 
 
 # ─── 静态文件服务 ──────────────────────────────────────────

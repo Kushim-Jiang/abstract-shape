@@ -781,6 +781,7 @@ function refreshPreview() {
   if (!el) return;
   const token = ++_previewToken;
   el.innerHTML = MD.render(renderMarkdown(WR.doc));
+  bindPreviewImages(el);
   appendCiteList(el, token);
 }
 
@@ -819,6 +820,89 @@ async function appendCiteList(box, token) {
         '</span><span class="cite-text">' + body + "</span></div>";
     }).join("");
   box.appendChild(sec);
+}
+
+// ─── 预览里的图片：点选 + 拖动右下角改宽度 ────────────────
+//
+// 预览是只读渲染结果，改宽度最终要写回札记正文里的 `{w=…}`，
+// 所以拖动只改 DOM，松手时再回写并重画。
+
+function bindPreviewImages(root) {
+  if (!root) return;
+  root.querySelectorAll(".md-fig").forEach(function (fig) {
+    const img = fig.querySelector("img");
+    const handle = fig.querySelector(".md-fig-handle");
+    if (!img) return;
+    fig.addEventListener("click", function (ev) {
+      ev.stopPropagation();
+      root.querySelectorAll(".md-fig.active").forEach(function (f) {
+        if (f !== fig) f.classList.remove("active");
+      });
+      fig.classList.add("active");
+    });
+    if (handle) handle.addEventListener("mousedown", function (ev) {
+      ev.preventDefault();
+      ev.stopPropagation();
+      startImageResize(fig, img, ev);
+    });
+  });
+}
+
+function startImageResize(fig, img, ev) {
+  const startX = ev.clientX;
+  const startW = img.getBoundingClientRect().width || fig.offsetWidth || 100;
+  const box = fig.parentElement || fig;
+  const maxW = Math.max(box.clientWidth || 0, 80);
+  fig.classList.add("resizing");
+  WR.imgResizing = true;
+  const cursor = document.body.style.cursor;
+  document.body.style.cursor = "nwse-resize";
+
+  function onMove(e) {
+    let w = Math.round(startW + (e.clientX - startX));
+    w = Math.max(24, Math.min(w, maxW));
+    fig.dataset.w = String(w);
+    fig.style.width = w + "px";
+  }
+  function onUp() {
+    document.removeEventListener("mousemove", onMove);
+    document.removeEventListener("mouseup", onUp);
+    document.body.style.cursor = cursor;
+    fig.classList.remove("resizing");
+    WR.imgResizing = false;
+    const w = parseInt(fig.dataset.w, 10) || 0;
+    if (w) applyImageWidth(img.getAttribute("src") || "", w);
+  }
+  document.addEventListener("mousemove", onMove);
+  document.addEventListener("mouseup", onUp);
+}
+
+/** 把宽度写回札记正文：找到含该 src 的图片写法，替换 / 补上 `{w=N}` */
+function applyImageWidth(src, w) {
+  const d = WR.doc;
+  if (!d || !src) return;
+  const esc = src.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const re = new RegExp("!\\[([^\\]]*)\\]\\(" + esc + "\\)(\\s*\\{[^}\\n]*\\})?", "g");
+  let hit = null;
+
+  (d.entries || []).forEach(function (e) {
+    const notes = e.notes || "";
+    if (!notes || notes.indexOf(src) < 0) return;
+    const next = notes.replace(re, function (_, alt, attr) {
+      const rest = String(attr || "").replace(/[{}]/g, " ")
+        .replace(/(?:^|\s)w(?:idth)?\s*=\s*\d+/gi, " ")
+        .replace(/\s+/g, " ").trim();
+      return "![" + alt + "](" + src + "){" + (rest ? rest + " w=" + w : "w=" + w) + "}";
+    });
+    if (next !== notes) { e.notes = next; hit = e; }
+  });
+
+  if (!hit) return;
+  const ta = $("ent-notes");
+  if (ta && hit.seq === WR.activeSeq) ta.value = hit.notes;
+  markDirty(true);
+  setSaveState("未保存");
+  refreshPreview();
 }
 
 // ─── 核验（右栏「核验」+ 左栏区段计数） ────────────────────
