@@ -581,7 +581,7 @@ function renderEntryForm(e) {
 
     '<div class="nf-row">' +
     '<label class="nf-label">抽构' +
-    '<span class="hint">输入时自动补 []、全角（）转 ()</span>' +
+    '<span class="hint">输入时自动补 []、全角（）转 ()；可用 [字]= 写分解</span>' +
     "</label>" +
     '<input id="ent-con" class="nf-input nf-con ent-con" type="text" spellcheck="false" ' +
     'value="' + MD.esc(e.con || "") + '">' +
@@ -775,18 +775,36 @@ function cmpCite(a, b) {
   return CITE_COLLATOR.compare(a.id, b.id);
 }
 
+/** 预览用的文档：新条还没保存时，把表单里的草稿也并进去 */
+function previewDoc() {
+  const d = WR.doc;
+  if (!d) return d;
+  const entries = d.entries || [];
+  if (entries.some(function (e) { return e.seq === WR.activeSeq; })) return d;
+  const val = function (id) { const el = $(id); return el ? el.value : ""; };
+  const draft = {
+    seq: entries.reduce(function (m, e) { return Math.max(m, e.seq || 0); }, 0) + 1,
+    con: val("ent-con").trim(),
+    ref_con: val("ent-ref-con").trim(),
+    notes: val("ent-notes"),
+  };
+  if (!draft.con && !draft.ref_con && !(draft.notes || "").trim()) return d;
+  return Object.assign({}, d, { entries: entries.concat([draft]) });
+}
+
 function refreshPreview() {
   if (!WR.doc) return;
   const el = $("doc-preview");
   if (!el) return;
   const token = ++_previewToken;
-  el.innerHTML = MD.render(renderMarkdown(WR.doc));
+  const doc = previewDoc();
+  el.innerHTML = MD.render(renderMarkdown(doc));
   bindPreviewImages(el);
-  appendCiteList(el, token);
+  appendCiteList(el, token, doc);
 }
 
-async function appendCiteList(box, token) {
-  const ids = citedIds(WR.doc);
+async function appendCiteList(box, token, doc) {
+  const ids = citedIds(doc || WR.doc);
   if (!ids.length) return;
 
   let map = window.REF && window.REF.byId;
@@ -813,13 +831,27 @@ async function appendCiteList(box, token) {
   sec.className = "cite-list";
   sec.innerHTML = '<div class="cite-h">参考文献</div>' +
     items.map(function (it) {
-      const body = (it.rec && it.rec.citation)
-        ? MD.esc(it.rec.citation)
-        : '<span class="cite-missing">文献库里没有这个编号</span>';
       return '<div class="cite-row"><span class="cite-id">' + MD.esc(it.id) +
-        '</span><span class="cite-text">' + body + "</span></div>";
+        '</span><span class="cite-text">' + citeHtml(it.rec) + "</span></div>";
     }).join("");
   box.appendChild(sec);
+}
+
+/** 文献库里的一条 → 预览里的引用文本；有网址时把篇名 / 书名做成链接 */
+function citeHtml(rec) {
+  if (!rec || !rec.citation) {
+    return '<span class="cite-missing">文献库里没有这个编号</span>';
+  }
+  const text = String(rec.citation);
+  const url = String(rec.url || "").trim();
+  const title = String(rec.article_title || rec.book_title || "").trim();
+  const needle = title ? "《" + title + "》" : "";
+  const at = (url && needle) ? text.indexOf(needle) : -1;
+  if (at < 0 || !/^https?:\/\//i.test(url)) return MD.esc(text);
+  return MD.esc(text.slice(0, at)) +
+    '<a class="cite-link" href="' + MD.esc(url) + '" target="_blank" ' +
+    'rel="noopener noreferrer">' + MD.esc(needle) + "</a>" +
+    MD.esc(text.slice(at + needle.length));
 }
 
 // ─── 预览里的图片：点选 + 拖动右下角改宽度 ────────────────
