@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>抽构标注管理</title>
-<link rel="stylesheet" href="style.css?v=38">
+<link rel="stylesheet" href="style.css?v=39">
 </head>
 <body>
 <div id="app">
@@ -16,6 +16,7 @@
         <button class="nav-btn" data-view="annotate">标注</button>
         <button class="nav-btn" data-view="chars">广义汉字</button>
         <button class="nav-btn" data-view="browse-ob">甲骨文</button>
+        <button class="nav-btn" data-view="browse-bi">金文</button>
         <button class="nav-btn" data-view="papers">参考文献</button>
         <button class="nav-btn" data-view="extra">未编码字</button>
       </nav>
@@ -172,6 +173,17 @@
       <div id="ob-pagination" class="pagination"></div>
     </div>
 
+    <!-- ═══ 金文视图（查询列表） ═══ -->
+    <div id="view-browse-bi" class="view">
+      <div class="toolbar">
+        <input type="text" id="bi-search" placeholder="按编号搜索，如 0101">
+        <button id="bi-search-btn" class="btn-primary">搜索</button>
+        <span id="bi-count" class="badge"></span>
+      </div>
+      <div id="bi-list" class="char-grid"></div>
+      <div id="bi-pagination" class="pagination"></div>
+    </div>
+
     <div id="view-papers" class="view">
       <div class="toolbar">
         <input type="text" id="paper-search">
@@ -212,7 +224,7 @@
 <script src="images.js?v=1"></script>
 <script src="writer.js?v=40"></script>
 <script src="refs.js?v=13"></script>
-<script src="app.js?v=10"></script>
+<script src="app.js?v=11"></script>
 <script src="typography.js?v=5"></script>
 </body>
 </html>

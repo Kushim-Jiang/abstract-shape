@@ -17,6 +17,10 @@ const state = {
   obTotal: 0,
   obOffset: 0,
   obLimit: 100,
+  bi: [],
+  biTotal: 0,
+  biOffset: 0,
+  biLimit: 100,
   papers: [],
 };
 
@@ -46,6 +50,7 @@ document.querySelectorAll(".nav-btn").forEach(btn => {
     if (view === "write") { if (typeof initWriter === "function") initWriter(); }
     else if (view === "chars") loadChars();
     else if (view === "browse-ob") loadOB();
+    else if (view === "browse-bi") loadBI();
     else if (view === "papers") loadPapers();
     else if (view === "extra") loadExtra();
   });
@@ -695,6 +700,38 @@ async function obDeleteAnno(idx) {
 }
 document.getElementById("ob-search-btn").addEventListener("click", function() { state.obOffset = 0; loadOB(); });
 document.getElementById("ob-search").addEventListener("keydown", function(e) { if (e.key === "Enter") { state.obOffset = 0; loadOB(); } });
+
+// ═══════════════════════════════════════════════════════════
+//  金文
+// ═══════════════════════════════════════════════════════════
+
+async function loadBI() {
+  var q = document.getElementById("bi-search").value.trim();
+  var data = q
+    ? await api("/bi/search?q=" + encodeURIComponent(q) + "&limit=" + state.biLimit + "&offset=" + state.biOffset)
+    : await api("/bi/search?limit=" + state.biLimit + "&offset=" + state.biOffset);
+  state.bi = data.results || [];
+  state.biTotal = data.total || 0;
+  renderBI();
+}
+
+function renderBI() {
+  var container = document.getElementById("bi-list");
+  document.getElementById("bi-count").textContent = state.biTotal + " \u6761";
+  if (!state.bi.length) { container.innerHTML = '<div class="empty">\u6682\u65E0\u6570\u636E</div>'; return; }
+  container.innerHTML = state.bi.map(function(b) {
+    return '<div class="char-card">'
+      + '<div class="char-glyph bi-glyph">' + b.glyph + '</div>'
+      + '<div class="char-cp">' + esc(b.num) + '</div>'
+      + '</div>';
+  }).join("");
+  renderPagination("bi-pagination", state.biTotal, state.biLimit, state.biOffset, function(off) {
+    state.biOffset = off; loadBI();
+  });
+}
+
+document.getElementById("bi-search-btn").addEventListener("click", function() { state.biOffset = 0; loadBI(); });
+document.getElementById("bi-search").addEventListener("keydown", function(e) { if (e.key === "Enter") { state.biOffset = 0; loadBI(); } });
 
 // ═══════════════════════════════════════════════════════════
 //  未编码字

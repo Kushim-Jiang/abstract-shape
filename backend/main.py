@@ -35,6 +35,7 @@ _char_map: dict[str, dict] = {}  # char -> entry
 _papers: list[dict] = []
 _paper_map: dict[str, str] = {}
 _ob: list[dict] = []
+_bi: list[dict] = []
 _extra: list[dict] = []
 _cross_refs: dict | None = None  # 交叉索引（懒加载）
 
@@ -247,7 +248,7 @@ def _migrate_annotations():
 
 
 def load_data():
-    global _characters, _char_map, _papers, _paper_map, _ob, _extra
+    global _characters, _char_map, _papers, _paper_map, _ob, _bi, _extra
 
     _characters = _load_jsonl("characters.jsonl")
     # 排序：按 Unicode codepoint
@@ -264,16 +265,13 @@ def load_data():
 
     # 其他数据
     _ob = _load_jsonl("ob.jsonl")
+    _bi = _load_jsonl("bi.jsonl")
     _extra = _load_json("extra.json").get("extra", [])
 
     print(f"  字符: {len(_characters)}")
     print(f"  参考文献: {len(_papers)}")
     print(f"  甲骨文: {len(_ob)}")
-    print(f"  未编码字: {len(_extra)}")
-
-    print(f"  字符: {len(_characters)}")
-    print(f"  参考文献: {len(_papers)}")
-    print(f"  甲骨文: {len(_ob)}")
+    print(f"  金文: {len(_bi)}")
     print(f"  未编码字: {len(_extra)}")
 
 
@@ -304,6 +302,7 @@ def get_stats():
         "unannotated": len(_characters) - annotated,
         "papers": len(_papers),
         "ob": len(_ob),
+        "bi": len(_bi),
         "extra": len(_extra),
         "guangyun": len(gy_data.get("rhyme_table", [])),
         "shengsheng": len(gy_data.get("initial_distribution", {}).get("rows", [])),
@@ -600,6 +599,17 @@ def search_ob(q: str = Query(""), limit: int = Query(100), offset: int = Query(0
         return False
 
     results = [o for o in _ob if ob_match(o)] if q else _ob
+    total = len(results)
+    return {"total": total, "results": results[offset : offset + limit]}
+
+
+@app.get("/api/bi/search")
+def search_bi(q: str = Query(""), limit: int = Query(100), offset: int = Query(0)):
+    """金文：bi.jsonl 只有 num（编号）和 glyph（ZihuiSongJW 私用区字形）。"""
+    def bi_match(b):
+        return q in str(b.get("glyph", "")) or q in str(b.get("num", ""))
+
+    results = [b for b in _bi if bi_match(b)] if q else _bi
     total = len(results)
     return {"total": total, "results": results[offset : offset + limit]}
 

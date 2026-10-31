@@ -380,6 +380,13 @@ main > .view.active:not(#view-write) { flex: 1; min-height: 0; overflow-y: auto;
 }
 .ob-glyph { font-family: 'ZihuiSongJGW', 'Noto Sans SC', sans-serif; font-size: 28px; }
 
+/* 金文：ZihuiSongJW 私用区码位 U+F0000 起，与切图一一对应 */
+@font-face {
+  font-family: 'ZihuiSongJW';
+  src: url('ZihuiSongJW.otf') format('opentype');
+}
+.bi-glyph { font-family: 'ZihuiSongJW', 'Noto Sans SC', sans-serif; font-size: 28px; }
+
 /* 小篆：每个字形在私用区，码位 = 0xF0000 + sid 数字 - 1 */
 @font-face {
   font-family: 'SealCCZ';
