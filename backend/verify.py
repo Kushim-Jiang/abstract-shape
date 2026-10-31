@@ -46,10 +46,15 @@ def _issue(level: str, code: str, field: str, message: str, seq: int) -> dict:
 
 
 def _parse_expr(expr: str):
-    """拆前缀后解析，返回 (prefix, body, node|None)。"""
-    prefix, body = shape.split_prefix(expr)
+    """拆前缀 / 分解头后解析，返回 (prefix, head, body, node|None)。"""
+    prefix, head, body = shape.split_head(expr)
     node = shape.try_parse(body) if body else None
-    return prefix, body, node
+    return prefix, head, body, node
+
+
+def _def_key(head, node) -> str:
+    """一条抽构「定义」的键：`[與]=⿶[舁][牙]` 算一条，`⿶[舁][牙]` 另算一条。"""
+    return (repr(head) + "=" if head else "") + repr(node)
 
 
 def _build_indexes() -> tuple[dict[str, list[tuple[str, int]]], set[str]]:
@@ -66,12 +71,16 @@ def _build_indexes() -> tuple[dict[str, list[tuple[str, int]]], set[str]]:
     units: set[str] = set()
 
     for e in entrystore.all_entries():
-        prefix, _body, node = _parse_expr(e["con"] or "")
+        prefix, head, _body, node = _parse_expr(e["con"] or "")
         if prefix or node is None:
             continue
-        key = repr(node)
+        key = _def_key(head, node)
         defs.setdefault(key, []).append((e["char"], e["seq"]))
-        if node.operator is None:
+        if head is not None:
+            # `[舁]=⿱[𦥑][𠬞]` 这条同时定义了部件 `[舁]` 本身
+            units.add(repr(head))
+            units.add("[" + head.shape + "]")
+        elif node.operator is None:
             chars = node.chars()
             if len(chars) == 1:
                 units.add(repr(chars[0]))
@@ -94,11 +103,12 @@ def unit_defs() -> dict[str, list[tuple[str, int]]]:
 
 
 def check_unique_unit(entry: dict, defs: dict[str, list[tuple[str, int]]]) -> list[dict]:
-    """同一条抽构只能有一个定义者（`[下]`、`⿰[虫][下]` 都一样），其余应写成 `=…`。"""
-    prefix, _body, node = _parse_expr(entry["con"] or "")
+    """同一条抽构只能有一个定义者（`[下]`、`⿰[虫][下]`、`[與]=⿶[舁][牙]` 都一样），
+    其余应写成 `=…`。"""
+    prefix, head, _body, node = _parse_expr(entry["con"] or "")
     if prefix or node is None:
         return []
-    key = repr(node)
+    key = _def_key(head, node)
     owners = defs.get(key) or []
     me = (entry["char"], entry["seq"])
     if len(owners) < 2:
@@ -126,7 +136,7 @@ def check_expression(expr: str, field: str, existing: set[str], seq: int) -> lis
         out.append(_issue("error", err.get("code") or "syntax", field, msg, seq))
         return out
 
-    _prefix, _body, node = _parse_expr(expr)
+    _prefix, _head, _body, node = _parse_expr(expr)
     if node is None:
         return out
 

@@ -14,7 +14,9 @@
     （`[A](B)`）；整个表达式外再包一层 `[]`（`[⿱一丂]`）和全角 `（）` 也认，
     解析前先归一，`normalized` 一律输出「每个部件都带 `[]`」的形式；
   * 运算符是 IDC（表意文字描述符），见 `IDC.ARITY`；
-  * `〾`(VA) 是一元运算符，表示近似形。
+  * `〾`(VA) 是一元运算符，表示近似形；
+  * 开头可以写「分解头」`[與]=`，表示这句讲的是 **與** 的分解
+    （`[與]=⿶[舁][牙]`）；头本身不是部件，不计入叶子数。
 
 对外主要提供 `validate(expr)`，返回结构化结果（含错误位置），
 供前端在「抽构」输入框里实时提示。
@@ -22,6 +24,7 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 
 # ─── 运算符（IDC） ─────────────────────────────────────────
@@ -333,6 +336,32 @@ def split_prefix(expr: str) -> tuple[str, str]:
     return "", s
 
 
+#: 分解头：`=` 左边那个部件，可写成 `[與]` / `與` / `[與(与)]`
+_HEAD_RE = re.compile(r"^(\[[^\[\]]+\]|[^\s\[\]=()⿰-⿿〾])\s*=\s*(.*)$", re.S)
+
+
+def split_head(expr: str) -> tuple[str, "Char | None", str]:
+    """拆出前缀与分解头：`[與]=⿶[舁][牙]` → `("", Char("與"), "⿶[舁][牙]")`。
+
+    没有 `部件=` 开头的就返回 `(prefix, None, 去掉前缀后的表达式)`。
+    """
+    s = (expr or "").strip().translate(_FULLWIDTH_MAP)
+    prefix = ""
+    rest = s
+    if rest and rest[0] in PREFIX_CHARS:
+        prefix, rest = rest[0], rest[1:].strip()
+    m = _HEAD_RE.match(rest)
+    if not m:
+        return prefix, None, rest
+    try:
+        node = _parse_text(m.group(1).strip())
+    except ShapeSyntaxError:
+        return prefix, None, rest
+    if node.operator is None and len(node.operands) == 1:
+        return prefix, node.operands[0], m.group(2).strip()
+    return prefix, None, rest
+
+
 def validate(expr: str, *, idc_only: bool = False) -> dict:
     """校验抽构表达式，返回结构化结果。
 
@@ -345,8 +374,9 @@ def validate(expr: str, *, idc_only: bool = False) -> dict:
         {
           "ok": bool,
           "error": {"message": str, "pos": int, "code": str} | None,
-          "normalized": str,          # 规范化后的表达式（部件加 []，前缀保留）
+          "normalized": str,          # 规范化后的表达式（部件加 []，前缀/分解头保留）
           "prefix": str,              # `= ~ * ?` 里的一个，没有则为空
+          "head": str,                # 分解头 `[與]`，没有则为空
           "leaves": str,              # 叶子部件串
           "leaf_count": int,
           "depth": int,
@@ -355,10 +385,20 @@ def validate(expr: str, *, idc_only: bool = False) -> dict:
         }
     """
     text = (expr or "").strip()
-    prefix, body = split_prefix(text)
+    prefix, head, body = split_head(text)
+    head_repr = repr(head) if head else ""
     if not body:
+        # `[與]=` 这种有头没内容的不算空表达式
+        if head:
+            return {
+                "ok": False,
+                "error": {"message": "「=」之后没有抽构", "pos": len(text), "code": "empty"},
+                "normalized": "", "prefix": prefix, "head": head_repr,
+                "leaves": "", "leaf_count": 0, "depth": 0, "operators": {},
+                "warnings": [],
+            }
         return {
-            "ok": True, "error": None, "normalized": "", "prefix": prefix,
+            "ok": True, "error": None, "normalized": "", "prefix": prefix, "head": "",
             "leaves": "", "leaf_count": 0, "depth": 0, "operators": {},
             "warnings": [], "empty": True,
         }
@@ -367,11 +407,15 @@ def validate(expr: str, *, idc_only: bool = False) -> dict:
         node = parse(body)
     except ShapeSyntaxError as e:
         err = e.as_dict()
-        err["pos"] += len(prefix)      # 前缀占一个字符，位置补回去
+        # 前缀 / 分解头各占若干字符，位置补回原文
+        try:
+            err["pos"] += text.rindex(body)
+        except ValueError:
+            err["pos"] += len(prefix) + (len(head_repr) + 1 if head else 0)
         return {
             "ok": False, "error": err, "normalized": "", "prefix": prefix,
-            "leaves": "", "leaf_count": 0, "depth": 0, "operators": {},
-            "warnings": [],
+            "head": head_repr, "leaves": "", "leaf_count": 0, "depth": 0,
+            "operators": {}, "warnings": [],
         }
 
     warnings: list[str] = []
@@ -403,8 +447,9 @@ def validate(expr: str, *, idc_only: bool = False) -> dict:
     return {
         "ok": True,
         "error": None,
-        "normalized": prefix + repr(node),
+        "normalized": prefix + (head_repr + "=" if head else "") + repr(node),
         "prefix": prefix,
+        "head": head_repr,
         "leaves": leaves,
         "leaf_count": len(chars),
         "depth": node.depth(),
@@ -415,5 +460,8 @@ def validate(expr: str, *, idc_only: bool = False) -> dict:
 
 def normalize(expr: str) -> str:
     """把表达式规范化为 `[A]` 形式（解析失败则原样返回）。"""
-    node = try_parse(expr)
-    return repr(node) if node is not None else (expr or "")
+    prefix, head, body = split_head(expr)
+    node = try_parse(body) if body else None
+    if node is None:
+        return (expr or "")
+    return prefix + (repr(head) + "=" if head else "") + repr(node)
