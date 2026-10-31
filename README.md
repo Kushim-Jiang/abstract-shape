@@ -51,7 +51,7 @@ to reset):
 | Column | Contents |
 | --- | --- |
 | left | the full character list (97712), grouped by Unicode block, paginated 100/page; each row shows how many notes that character has, and the block chips carry a red count of 核验 problems (`基本 3`) |
-| middle | the note editor: 抽构 / 参考抽构 / 札记, with an 编辑·预览 toggle |
+| middle | the note editor: 抽构 / 参考抽构 / 甲骨文 / 小篆 / 札记, with an 编辑·预览 toggle |
 | right | 文献 (BibTeX-style reference editor), 资料 (抽构表 / 广韵 / IES / 词表, read-only) and 核验 (what is wrong with the current character) |
 
 Keyboard: `Ctrl+S` save, `Ctrl+E` toggle edit/preview, `Ctrl+↑` `Ctrl+↓` previous
@@ -121,7 +121,16 @@ keyed by `(character, seq)`:
 | `seq` | note number within that character, from 1; referenced as `丂-1` |
 | `con` | the abstract shape — an IDS expression, validated by `backend/shape.py` |
 | `ref_con` | a comparative shape; `=字` / `*字` are annotation conventions and skip IDS validation |
+| `ob` | oracle-bone forms attached to this note — `num`s from `backend/data/ob.jsonl`, e.g. `["0200"]` |
+| `xz` | small-seal forms attached to this note — `sid`s from `backend/data/tab_unicode.tsv`, e.g. `["S01996"]` |
 | `notes` | the note body, free Markdown; citations are written inline (see below) |
+
+`ob` / `xz` are picked in the editor (甲骨文 / 小篆 rows, multi-select; candidates come
+from `/api/glyphs/ob` and `/api/glyphs/seal`). Both glyph sets live in the private
+use area, codepoint `0xF0000 + number - 1`: `ob.jsonl` carries the character itself,
+while the seal table maps `sid` → `zi_strict` / `zi`, and the font is
+`frontend/sw-ccz-1963-rev1.ttf` (11108 forms). In Markdown they can also be written
+by hand as `[[卜:0001,0200]]` and `[[篆:S01996]]`.
 
 ### Citations
 
@@ -212,6 +221,8 @@ wins over code-point order. 扩展J (U+323B0–U+3347F, Unicode 17.0) follows �
 | --- | --- |
 | `[[丂-1]]` | cross-reference to note 丂-1 (clickable) |
 | `[[文献: L005]]` | reference link rendered as `[L005]` |
+| `[[卜:0001,0200]]` | oracle-bone glyphs (numbers from `ob.jsonl`) |
+| `[[篆:S01996]]` | small-seal glyphs (`sid` from `tab_unicode.tsv`) |
 
 ### Migrating old data
 

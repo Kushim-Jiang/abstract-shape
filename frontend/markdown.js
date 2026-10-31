@@ -34,6 +34,18 @@ function mdInline(text, opts) {
     return "\u0000C" + (codes.length - 1) + "\u0000";
   });
 
+  // 字形：[[卜:0001,0200]] 甲骨文 / [[篆:S01996]] 小篆
+  // 两种字体都把字形放在私用区，码位 = 0xF0000 + 序号 - 1
+  s = s.replace(/\[\[\s*([卜篆])\s*[:：]\s*([^\]]+)\]\]/g, function (_, kind, ids) {
+    const chars = String(ids).split(/[,\s，、]+/).map(function (id) {
+      const n = parseInt(String(id).replace(/[^0-9]/g, ""), 10);
+      return n >= 1 ? String.fromCodePoint(0xF0000 + n - 1) : "";
+    }).join("");
+    if (!chars) return "";
+    return '<span class="md-glyph ' +
+      (kind === "卜" ? "ob-glyph" : "xz-glyph") + '">' + chars + "</span>";
+  });
+
   // 跨札记引用 [[丂-1]] / [[丂-1-2]]（字符-序号，字符可含连字符时贪心匹配到最后的序号）
   s = s.replace(/\[\[\s*([^\[\]:：]+?)-(\d+)\s*\]\]/g, function (_, ch, n) {
     const ref = ch + "-" + n;

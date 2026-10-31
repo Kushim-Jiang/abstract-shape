@@ -14,7 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, PlainTextResponse
 from pydantic import BaseModel
 
-from . import blocks, entrystore, refs, shape, sheettable, verify
+from . import blocks, entrystore, glyphs, refs, shape, sheettable, verify
 
 DATA_DIR = Path(__file__).parent / "data"
 
@@ -759,6 +759,8 @@ class EntrySaveRequest(BaseModel):
     seq: int = 0              # 0 = 自动分配下一个条号
     con: str = ""             # 抽构（IDS）
     ref_con: str = ""         # 参考抽构
+    ob: list[str] = []        # 甲骨文编号（ob.jsonl 的 `num`）
+    xz: list[str] = []        # 小篆 sid（tab_unicode.tsv 的 `sid`）
     notes: str = ""           # 札记正文（Markdown）；文献引用写成 `[ref:C001.244-245+248]`
 
 
@@ -954,6 +956,19 @@ def shape_grammar():
     }
 
 
+@app.get("/api/glyphs/seal")
+def glyph_seal(char: str = Query(""), q: str = Query(""), limit: int = Query(240)):
+    """小篆候选：给一个字就列出它的小篆（`zi_strict` / `zi` 命中），
+    `q` 用来在整张表里搜。返回项里的 `cp` 是字体里的码位。"""
+    return glyphs.seal_candidates(char, q, limit)
+
+
+@app.get("/api/glyphs/ob")
+def glyph_ob(char: str = Query(""), q: str = Query(""), limit: int = Query(240)):
+    """甲骨文候选：给一个字就列出标注到它的卜辞字形，`q` 用来按编号 / 释文搜。"""
+    return glyphs.ob_candidates(char, q, limit)
+
+
 # ─── 条（entry）API ───────────────────────────────────────
 #
 # 一条 = 一行 ndjson，键是 (字, 条号)，前端引用写作 `丂-1`。
@@ -1069,6 +1084,7 @@ def save_entry(char: str, data: EntrySaveRequest):
     # 引用是从札记正文的 `[ref:…]` 解析出来的，不单独传
     rec = entrystore.write_entry(
         c, data.seq, con=data.con, ref_con=data.ref_con, notes=data.notes,
+        ob=glyphs.known_ob(data.ob), xz=glyphs.known_seal(data.xz),
     )
     return {
         "status": "ok",

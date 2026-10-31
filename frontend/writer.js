@@ -24,6 +24,8 @@ const WR = {
   initialized: false,
   page: 1,            // 左侧列表当前页
   perPage: 100,       // 每页多少个字
+  obSel: [],          // 当前条选中的甲骨文编号
+  xzSel: [],          // 当前条选中的小篆 sid
 };
 
 function $(id) { return document.getElementById(id); }
@@ -542,6 +544,8 @@ function renderEditor() {
   const isNew = !cur;
   // 新建时用一条空白草稿渲染表单，seq 留 0（保存时后端分配条号）
   const form = cur || { seq: 0, con: "", ref_con: "", notes: "" };
+  WR.obSel = ((cur && cur.ob) || []).slice();
+  WR.xzSel = ((cur && cur.xz) || []).slice();
 
   box.innerHTML =
     '<div class="note-form">' +
@@ -570,6 +574,8 @@ function renderEditor() {
     "</div>";
 
   bindEditor();
+  renderGlyphChips("ob");
+  renderGlyphChips("xz");
   if (!isNew) renderShapeStatus(WR.shape);
   refreshPreview();
   applyVerifyMarks();
@@ -595,6 +601,24 @@ function renderEntryForm(e) {
     "</div>" +
 
     '<div class="nf-row">' +
+    '<label class="nf-label">甲骨文' +
+    '<span class="hint">可多选</span></label>' +
+    '<div class="glyph-pick">' +
+    '<div class="glyph-chips" id="ent-ob-chips"></div>' +
+    '<button class="btn-sm" id="ent-ob-add" title="选择甲骨文字形">＋ 选择</button>' +
+    "</div>" +
+    "</div>" +
+
+    '<div class="nf-row">' +
+    '<label class="nf-label">小篆' +
+    '<span class="hint">可多选</span></label>' +
+    '<div class="glyph-pick">' +
+    '<div class="glyph-chips" id="ent-xz-chips"></div>' +
+    '<button class="btn-sm" id="ent-xz-add" title="选择小篆字形">＋ 选择</button>' +
+    "</div>" +
+    "</div>" +
+
+    '<div class="nf-row">' +
     '<label class="nf-label">札记</label>' +
     '<textarea id="ent-notes" class="nf-textarea ent-notes" spellcheck="false">' +
     MD.esc(e.notes || "") + "</textarea>" +
@@ -602,6 +626,142 @@ function renderEntryForm(e) {
 
     "</div>"
   );
+}
+
+// ─── 甲骨文 / 小篆：每条各选若干字形 ─────────────────────
+//
+// 两种字体都把字形放在私用区，码位 = 0xF0000 + 序号 - 1：
+//   甲骨文 → ob.jsonl 的 num（如 0001），字体 ZihuiSongJGW
+//   小篆   → tab_unicode.tsv 的 sid（如 S01996），字体 sw-ccz-1963-rev1
+// 候选项由后端按字查好，这里只负责多选。
+
+function glyphChar(id) {
+  const n = parseInt(String(id).replace(/[^0-9]/g, ""), 10);
+  return n >= 1 ? String.fromCodePoint(0xF0000 + n - 1) : "";
+}
+
+function glyphSel(kind) { return kind === "ob" ? WR.obSel : WR.xzSel; }
+
+function glyphClass(kind) { return kind === "ob" ? "ob-glyph" : "xz-glyph"; }
+
+/** 把当前条已选的字形画成一排小方块，点一下取消选择 */
+function renderGlyphChips(kind) {
+  const box = $(kind === "ob" ? "ent-ob-chips" : "ent-xz-chips");
+  if (!box) return;
+  const sel = glyphSel(kind);
+  if (!sel.length) {
+    box.innerHTML = '<span class="glyph-empty">未选</span>';
+    return;
+  }
+  box.innerHTML = sel.map(function (id) {
+    return '<span class="glyph-chip" data-id="' + MD.esc(id) + '" title="点击取消选择">' +
+      '<span class="g ' + glyphClass(kind) + '">' + glyphChar(id) + "</span>" +
+      '<span class="n">' + MD.esc(id) + "</span></span>";
+  }).join("");
+  box.querySelectorAll(".glyph-chip").forEach(function (el) {
+    el.addEventListener("click", function () {
+      const id = el.getAttribute("data-id");
+      const list = glyphSel(kind);
+      const i = list.indexOf(id);
+      if (i >= 0) list.splice(i, 1);
+      renderGlyphChips(kind);
+      markDirty(true);
+      setSaveState("未保存");
+      refreshPreview();
+    });
+  });
+}
+
+/** 打开选字形面板：先列这个字的候选，也能按编号 / 字搜索整张表 */
+function openGlyphPicker(kind) {
+  const old = document.querySelector(".gp-overlay");
+  if (old) old.remove();
+
+  const isOB = kind === "ob";
+  const sel = new Set(glyphSel(kind));
+  const ov = document.createElement("div");
+  ov.className = "gp-overlay";
+  ov.innerHTML =
+    '<div class="gp-box">' +
+    '<div class="gp-head">' +
+    '<span class="gp-title">' + (isOB ? "选择甲骨文" : "选择小篆") + "</span>" +
+    '<input id="gp-q" type="text" placeholder="' +
+    (isOB ? "搜索编号 / 释文中的字" : "搜索 sid / 字") + '">' +
+    '<span class="hint" id="gp-count"></span>' +
+    '<button class="btn-primary btn-sm" id="gp-done">完成</button>' +
+    '<button class="btn-sm" id="gp-cancel">取消</button>' +
+    "</div>" +
+    '<div class="gp-body"><div class="gp-grid" id="gp-grid"></div></div>' +
+    "</div>";
+  document.body.appendChild(ov);
+
+  const grid = ov.querySelector("#gp-grid");
+  const countEl = ov.querySelector("#gp-count");
+  const qEl = ov.querySelector("#gp-q");
+
+  function cellHtml(it) {
+    const id = isOB ? it.num : it.sid;
+    const label = isOB ? it.num : it.sid.replace(/^S/, "");
+    const sub = isOB ? (it.con || []).join("、") : (it.zi_strict || it.zi || "");
+    return '<button class="gp-cell' + (sel.has(id) ? " on" : "") + '" data-id="' +
+      MD.esc(id) + '" title="' + MD.esc(sub) + '">' +
+      '<span class="gp-g ' + glyphClass(kind) + '">' +
+      (isOB ? it.glyph : glyphChar(it.sid)) + "</span>" +
+      '<span class="gp-n">' + MD.esc(label) + "</span>" +
+      (sub ? '<span class="gp-z">' + MD.esc(sub.slice(0, 6)) + "</span>" : "") +
+      "</button>";
+  }
+
+  async function fill(q) {
+    let data;
+    try {
+      data = await wrGet("/glyphs/" + (isOB ? "ob" : "seal") +
+        "?char=" + encodeURIComponent(WR.current || "") +
+        "&q=" + encodeURIComponent(q || ""));
+    } catch (e) {
+      grid.innerHTML = '<div class="empty">读取失败：' + MD.esc(e.message) + "</div>";
+      return;
+    }
+    const items = data.results || [];
+    countEl.textContent = items.length + " / " + (data.total || 0);
+    grid.innerHTML = items.length
+      ? items.map(cellHtml).join("")
+      : '<div class="empty">没有候选，换个搜索词试试</div>';
+    grid.querySelectorAll(".gp-cell").forEach(function (el) {
+      el.addEventListener("click", function () {
+        const id = el.getAttribute("data-id");
+        if (sel.has(id)) { sel.delete(id); el.classList.remove("on"); }
+        else { sel.add(id); el.classList.add("on"); }
+      });
+    });
+  }
+
+  let timer = null;
+  qEl.addEventListener("input", function () {
+    clearTimeout(timer);
+    timer = setTimeout(function () { fill(qEl.value.trim()); }, 200);
+  });
+
+  function close() { ov.remove(); document.removeEventListener("keydown", onKey); }
+  function onKey(ev) { if (ev.key === "Escape") close(); }
+  document.addEventListener("keydown", onKey);
+  ov.addEventListener("click", function (ev) { if (ev.target === ov) close(); });
+  ov.querySelector("#gp-cancel").addEventListener("click", close);
+  ov.querySelector("#gp-done").addEventListener("click", function () {
+    // 保持候选里的先后顺序：先已选的原有顺序，再补新选的
+    const list = glyphSel(kind);
+    const kept = list.filter(function (id) { return sel.has(id); });
+    sel.forEach(function (id) { if (kept.indexOf(id) < 0) kept.push(id); });
+    if (kind === "ob") WR.obSel = kept; else WR.xzSel = kept;
+    close();
+    renderGlyphChips(kind);
+    markDirty(true);
+    setSaveState("未保存");
+    refreshPreview();
+  });
+
+  fill("");
+  qEl.focus();
 }
 
 /** 把各框收回 WR.doc.entries 里当前那条；新建时返回一个草稿对象 */
@@ -616,6 +776,8 @@ function collectEntry() {
   if (rcEl) target.ref_con = rcEl.value.trim();
   const ntEl = $("ent-notes");
   if (ntEl) target.notes = ntEl.value;
+  target.ob = WR.obSel.slice();
+  target.xz = WR.xzSel.slice();
   return target;
 }
 
@@ -651,6 +813,12 @@ function bindEditor() {
   if (save) save.addEventListener("click", saveEntry);
   const del = $("ent-delete");
   if (del) del.addEventListener("click", deleteEntry);
+
+  // 甲骨文 / 小篆：每条各选若干字形
+  const obAdd = $("ent-ob-add");
+  if (obAdd) obAdd.addEventListener("click", function () { openGlyphPicker("ob"); });
+  const xzAdd = $("ent-xz-add");
+  if (xzAdd) xzAdd.addEventListener("click", function () { openGlyphPicker("xz"); });
 
   // 实时：校验抽构 + 刷新预览
   const con = $("ent-con");
@@ -786,9 +954,12 @@ function previewDoc() {
     seq: entries.reduce(function (m, e) { return Math.max(m, e.seq || 0); }, 0) + 1,
     con: val("ent-con").trim(),
     ref_con: val("ent-ref-con").trim(),
+    ob: WR.obSel.slice(),
+    xz: WR.xzSel.slice(),
     notes: val("ent-notes"),
   };
-  if (!draft.con && !draft.ref_con && !(draft.notes || "").trim()) return d;
+  if (!draft.con && !draft.ref_con && !(draft.notes || "").trim() &&
+      !draft.ob.length && !draft.xz.length) return d;
   return Object.assign({}, d, { entries: entries.concat([draft]) });
 }
 
@@ -1079,7 +1250,13 @@ function renderMarkdown(d) {
     lines.push("## " + d.char + "-" + e.seq, "");
     if (e.con) lines.push("- 抽构：`" + e.con + "`");
     if (e.ref_con) lines.push("- 参考抽构：`" + e.ref_con + "`");
-    if (e.con || e.ref_con) lines.push("");
+    if (e.ob && e.ob.length) {
+      lines.push("- 甲骨文：" + e.ob.map(function (n) { return "[[卜:" + n + "]]"; }).join(""));
+    }
+    if (e.xz && e.xz.length) {
+      lines.push("- 小篆：" + e.xz.map(function (s) { return "[[篆:" + s + "]]"; }).join(""));
+    }
+    if (e.con || e.ref_con || (e.ob && e.ob.length) || (e.xz && e.xz.length)) lines.push("");
     if ((e.notes || "").trim()) { lines.push(e.notes.trim(), ""); }
   });
   return lines.join("\n").replace(/\n\n\n/g, "\n\n").replace(/\s+$/, "") + "\n";
@@ -1117,6 +1294,8 @@ async function saveEntry() {
       seq: WR.activeSeq || 0,
       con: payload.con || "",
       ref_con: payload.ref_con || "",
+      ob: WR.obSel.slice(),
+      xz: WR.xzSel.slice(),
       notes: payload.notes || "",
     });
     const saved = r.entry;

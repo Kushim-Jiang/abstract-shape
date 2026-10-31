@@ -373,12 +373,62 @@ main > .view.active:not(#view-write) { flex: 1; min-height: 0; overflow-y: auto;
 /* ─── 其他 ───────────────────────────────────────────── */
 .empty { color: var(--text2); text-align: center; padding: 40px; }
 
-/* ─── 甲骨文字体 ─────────────────────────────────────── */
+/* ─── 甲骨文 / 小篆字体 ─────────────────────────────── */
 @font-face {
   font-family: 'ZihuiSongJGW';
   src: url('ZihuiSongJGW.ttf') format('truetype');
 }
 .ob-glyph { font-family: 'ZihuiSongJGW', 'Noto Sans SC', sans-serif; font-size: 28px; }
+
+/* 小篆：每个字形在私用区，码位 = 0xF0000 + sid 数字 - 1 */
+@font-face {
+  font-family: 'SealCCZ';
+  src: url('sw-ccz-1963-rev1.ttf') format('truetype');
+}
+.xz-glyph { font-family: 'SealCCZ', 'ZihuiSongJGW', serif; font-size: 28px; }
+.md-glyph { font-size: 1.5em; line-height: 1; vertical-align: -.1em; margin: 0 .06em; }
+
+/* 条里选字形：已选的小方块 + 选择按钮 */
+.glyph-pick { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.glyph-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.glyph-chip {
+  display: inline-flex; align-items: center; gap: 5px; padding: 1px 8px 1px 3px;
+  border: 1px solid var(--border); border-radius: 8px; background: var(--bg3);
+  cursor: pointer; transition: .15s;
+}
+.glyph-chip:hover { border-color: var(--danger); }
+.glyph-chip .g { font-size: 26px; line-height: 1.1; }
+.glyph-chip .n { font-family: "Cascadia Mono", monospace; font-size: 10px; color: var(--text2); }
+.glyph-empty { font-size: 12px; color: var(--text2); }
+
+/* 选字形面板 */
+.gp-overlay {
+  position: fixed; inset: 0; background: var(--overlay-bg); z-index: 60;
+  display: flex; align-items: center; justify-content: center;
+}
+.gp-box {
+  width: min(860px, 94vw); max-height: 84vh; display: flex; flex-direction: column;
+  background: var(--bg2); border: 1px solid var(--border); border-radius: 12px;
+  overflow: hidden; box-shadow: 0 12px 40px rgba(0,0,0,.45);
+}
+.gp-head {
+  display: flex; gap: 8px; align-items: center; padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+}
+.gp-head .gp-title { font-size: 13px; font-weight: 700; white-space: nowrap; }
+.gp-head input { flex: 1; min-width: 80px; }
+.gp-body { overflow: auto; padding: 12px 14px 16px; }
+.gp-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(78px, 1fr)); gap: 8px; }
+.gp-cell {
+  display: flex; flex-direction: column; align-items: center; gap: 1px;
+  padding: 6px 4px 4px; border: 1px solid var(--border); border-radius: 8px;
+  background: var(--bg3); cursor: pointer; transition: .12s;
+}
+.gp-cell:hover { border-color: var(--accent); }
+.gp-cell.on { border-color: var(--accent); background: var(--bg4); box-shadow: inset 0 0 0 1px var(--accent); }
+.gp-cell .gp-g { font-size: 40px; line-height: 1.1; }
+.gp-cell .gp-n { font-family: "Cascadia Mono", monospace; font-size: 10px; color: var(--text2); }
+.gp-cell .gp-z { font-size: 11px; color: var(--text2); }
 
 /* ─── 批量编辑 ───────────────────────────────────────── */
 .batch-char-strip {

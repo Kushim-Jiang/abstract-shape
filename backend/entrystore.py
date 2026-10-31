@@ -8,6 +8,8 @@
 
   * `con`      抽构（IDS 表达式，`backend/shape.py` 校验，可空）
   * `ref_con`  参考抽构（同上，通常是 `=字` / `*字` 这种非 IDS 写法，不做校验）
+  * `ob`       甲骨文：`backend/data/ob.jsonl` 里的编号，如 `["0001", "0200"]`
+  * `xz`       小篆：`backend/data/tab_unicode.tsv` 里的 `sid`，如 `["S01996"]`
   * `notes`    札记正文（自由 Markdown），**文献引用直接写在正文里**：
                  `[ref:文献编号.页码]`，如 `[ref:C001.244-245+248]`
                  表示 C001 的 244—245 页和 248 页，`[ref:C001]` 则只指文献。
@@ -129,6 +131,16 @@ def refs_from_notes(notes: str) -> list[dict]:
     return out
 
 
+def _clean_ids(values) -> list[str]:
+    """字形编号列表：去空、去重、保序。"""
+    out: list[str] = []
+    for v in values or []:
+        s = str(v).strip()
+        if s and s not in out:
+            out.append(s)
+    return out
+
+
 def _norm_entry(rec: dict) -> dict | None:
     """把一行 json 规整成一条 entry；字为空则丢弃。"""
     ch = (rec.get("char") or "").strip()
@@ -150,6 +162,8 @@ def _norm_entry(rec: dict) -> dict | None:
         "seq": seq,
         "con": (rec.get("con") or "").strip(),
         "ref_con": (rec.get("ref_con") or "").strip(),
+        "ob": _clean_ids(rec.get("ob")),
+        "xz": _clean_ids(rec.get("xz")),
         "notes": notes,
         "refs": refs,
     }
@@ -212,6 +226,10 @@ def _flush() -> None:
                 out["con"] = e["con"]
             if e["ref_con"]:
                 out["ref_con"] = e["ref_con"]
+            if e["ob"]:
+                out["ob"] = e["ob"]
+            if e["xz"]:
+                out["xz"] = e["xz"]
             if e["notes"]:
                 out["notes"] = e["notes"]
             if e["refs"] and e["refs"] != refs_from_notes(e["notes"]):
@@ -305,10 +323,11 @@ def parse_key(key: str) -> tuple[str, int] | None:
 
 
 def write_entry(char: str, seq: int, con: str = "", ref_con: str = "",
-                notes: str = "", refs=None) -> dict:
+                notes: str = "", refs=None, ob=None, xz=None) -> dict:
     """写入 / 覆盖一条。seq<=0 时自动分配下一个可用条号。
 
     引用一律从札记正文的 `[ref:编号.页码]` 解析；`refs` 参数只留给导入脚本用。
+    `ob` / `xz` 是这条札记对应的卜辞字形编号与小篆 sid。
     """
     _load()
     char = char.strip()
@@ -321,6 +340,8 @@ def write_entry(char: str, seq: int, con: str = "", ref_con: str = "",
         "seq": seq,
         "con": (con or "").strip(),
         "ref_con": (ref_con or "").strip(),
+        "ob": _clean_ids(ob),
+        "xz": _clean_ids(xz),
         "notes": notes,
         "refs": refs_from_notes(notes) if refs is None else _clean_refs(refs),
     }
