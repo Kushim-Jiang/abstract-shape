@@ -253,8 +253,29 @@ function jumpFirstBlank() {
   });
 }
 
-// ─── 三栏拖拽调宽 ────────────────────────────────────────
-//
+/** 跳到「当前列表里第一个有核验问题的字」 */
+async function jumpFirstIssue() {
+  if ($("doc-search").value.trim()) {
+    $("doc-search").value = "";
+    await loadCharList(false);
+  }
+  if (!WR.verifySummary) await loadVerifySummary();
+  const by = (WR.verifySummary && WR.verifySummary.by_char) || {};
+  const idx = WR.chars.findIndex(function (c) { return by[c.char]; });
+  if (idx < 0) {
+    setSaveState("没有核验问题", "ok");
+    setTimeout(function () { setSaveState(""); }, 1600);
+    return;
+  }
+  const ch = WR.chars[idx].char;
+  confirmLeave(function () {
+    WR.page = Math.floor(idx / WR.perPage) + 1;
+    renderCharList();
+    openDoc(ch);
+  });
+}
+
+// ─── 三栏拖拽调宽 ────────────────────────────────────────//
 //   [左：字表] │split-left│ [中：编辑/预览] │split-right│ [右：资料]
 //
 // 拖 split-left  → 改左侧宽度（中/右跟着让）
@@ -1464,6 +1485,7 @@ function initWriter() {
     await loadCharList(true);
   });
   $("doc-first-blank").addEventListener("click", jumpFirstBlank);
+  $("doc-first-issue").addEventListener("click", jumpFirstIssue);
 
   $("sw-edit").addEventListener("click", function () { setPane("edit"); });
   $("sw-preview").addEventListener("click", function () { setPane("preview"); });

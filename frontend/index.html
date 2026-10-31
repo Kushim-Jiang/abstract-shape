@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>抽构标注管理</title>
-<link rel="stylesheet" href="style.css?v=37">
+<link rel="stylesheet" href="style.css?v=38">
 </head>
 <body>
 <div id="app">
@@ -43,6 +43,7 @@
           <button class="blk-chip active" data-block="__all__">全部</button>
           <button class="blk-chip done" data-block="__done__">✓ 已写</button>
           <button id="doc-first-blank" class="blk-chip blank">▶ 未写</button>
+          <button id="doc-first-issue" class="blk-chip issue" title="跳到第一处核验问题">⚠ 核验</button>
           <div id="block-chips" class="block-chips"></div>
         </div>
         <div id="doc-list" class="doc-list"></div>
@@ -209,7 +210,7 @@
 <script src="markdown.js?v=13"></script>
 <script src="format.js?v=1"></script>
 <script src="images.js?v=1"></script>
-<script src="writer.js?v=39"></script>
+<script src="writer.js?v=40"></script>
 <script src="refs.js?v=13"></script>
 <script src="app.js?v=10"></script>
 <script src="typography.js?v=5"></script>
