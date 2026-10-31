@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>抽构标注管理</title>
-<link rel="stylesheet" href="style.css?v=39">
+<link rel="stylesheet" href="style.css?v=40">
 </head>
 <body>
 <div id="app">
@@ -13,7 +13,6 @@
       <span class="site-title">抽构标注管理</span>
       <nav class="header-nav">
         <button class="nav-btn active" data-view="write">写作</button>
-        <button class="nav-btn" data-view="annotate">标注</button>
         <button class="nav-btn" data-view="chars">广义汉字</button>
         <button class="nav-btn" data-view="browse-ob">甲骨文</button>
         <button class="nav-btn" data-view="browse-bi">金文</button>
@@ -140,45 +139,25 @@
       <div id="char-pagination" class="pagination"></div>
     </div>
 
-    <!-- ═══ 标注视图（汉字/甲骨文详情编辑 + 参考资料） ═══ -->
-    <div id="view-annotate" class="view">
-      <div class="anno-toolbar">
-        <button id="anno-prev-btn" class="btn-nav" title="上一字">◀</button>
-        <span id="anno-char-label"></span>
-        <button id="anno-next-btn" class="btn-nav" title="下一字">▶</button>
-        <button id="anno-batch-btn" class="btn-nav" title="批量编辑模式" style="margin-left:auto;">批量</button>
-      </div>
-      <!-- 批量编辑面板（在标注视图内） -->
-      <div id="batch-panel" class="batch-panel" style="display:none;">
-        <div class="batch-toolbar">
-          <span>IDS 部件：</span>
-          <input type="text" id="batch-component" style="width:140px;">
-          <button id="batch-search-btn" class="btn-accent">搜索</button>
-          <span id="batch-count" class="badge"></span>
-          <button id="batch-save-all" class="btn-primary" style="margin-left:auto;display:none;">💾 保存全部</button>
-        </div>
-        <div id="batch-char-strip" class="batch-char-strip"></div>
-      </div>
-      <div id="detail-body" class="anno-body"></div>
-    </div>
-
-    <!-- ═══ 甲骨文视图（查询列表） ═══ -->
+    <!-- ═══ 甲骨文视图（查询列表 + 汉字字形标注） ═══ -->
     <div id="view-browse-ob" class="view">
       <div class="toolbar">
-        <input type="text" id="ob-search">
+        <input type="text" id="ob-search" placeholder="按编号或汉字字形搜索，如 0001">
         <button id="ob-search-btn" class="btn-primary">搜索</button>
         <span id="ob-count" class="badge"></span>
+        <span class="toolbar-hint">字形下方点 ＋ 标汉字字形，点 × 删除</span>
       </div>
       <div id="ob-list" class="char-grid"></div>
       <div id="ob-pagination" class="pagination"></div>
     </div>
 
-    <!-- ═══ 金文视图（查询列表） ═══ -->
+    <!-- ═══ 金文视图（查询列表 + 汉字字形标注） ═══ -->
     <div id="view-browse-bi" class="view">
       <div class="toolbar">
-        <input type="text" id="bi-search" placeholder="按编号搜索，如 0101">
+        <input type="text" id="bi-search" placeholder="按编号或汉字字形搜索，如 00001">
         <button id="bi-search-btn" class="btn-primary">搜索</button>
         <span id="bi-count" class="badge"></span>
+        <span class="toolbar-hint">字形下方点 ＋ 标汉字字形，点 × 删除</span>
       </div>
       <div id="bi-list" class="char-grid"></div>
       <div id="bi-pagination" class="pagination"></div>
@@ -222,9 +201,9 @@
 <script src="markdown.js?v=13"></script>
 <script src="format.js?v=1"></script>
 <script src="images.js?v=1"></script>
-<script src="writer.js?v=40"></script>
+<script src="writer.js?v=41"></script>
 <script src="refs.js?v=13"></script>
-<script src="app.js?v=11"></script>
+<script src="app.js?v=12"></script>
 <script src="typography.js?v=5"></script>
 </body>
 </html>

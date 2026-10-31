@@ -189,6 +189,35 @@ main > .view.active:not(#view-write) { flex: 1; min-height: 0; overflow-y: auto;
   overflow: hidden;
 }
 
+/* ─── 甲骨文 / 金文：字形下的汉字字形标注 ───────────────── */
+.char-card.glyph-card { cursor: default; }
+.zi-tags {
+  display: flex; flex-wrap: wrap; gap: 4px; align-items: center;
+  margin-top: 6px; min-height: 24px;
+}
+.zi-tag {
+  display: inline-flex; align-items: center; gap: 2px;
+  background: var(--bg4); border-radius: 4px; padding: 1px 4px 1px 8px;
+  font-size: 14px; line-height: 1.6; border-left: 3px solid var(--accent2);
+}
+.zi-tag.has-ref { border-left-color: var(--accent); }
+.zi-tag .zi-del {
+  background: transparent; border: none; color: var(--text2);
+  font-size: 13px; line-height: 1; padding: 0 2px; cursor: pointer;
+}
+.zi-tag .zi-del:hover { color: var(--danger); }
+.zi-add {
+  background: transparent; border: 1px dashed var(--border); color: var(--text2);
+  border-radius: 4px; padding: 0 6px; font-size: 13px; line-height: 1.7; cursor: pointer;
+}
+.zi-add:hover { border-color: var(--accent2); color: var(--accent2); }
+.zi-input {
+  width: 100%; box-sizing: border-box; background: var(--bg2);
+  border: 1px solid var(--accent2); color: var(--text); border-radius: 4px;
+  padding: 2px 6px; font-size: 14px; font-family: inherit;
+}
+.zi-input:focus { outline: none; }
+
 /* ─── 分页 ───────────────────────────────────────────── */
 .pagination {
   display: flex; justify-content: center; align-items: center;
@@ -206,39 +235,11 @@ main > .view.active:not(#view-write) { flex: 1; min-height: 0; overflow-y: auto;
 .pagination span { color: var(--text2); font-size: 13px; }
 
 /* ─── 标注页布局 ──────────────────────────────────────── */
-.anno-toolbar {
-  padding: 0 0 8px 0; border-bottom: 1px solid var(--border);
-  margin-bottom: 12px; display: flex; align-items: center;
-}
-#anno-char-label { flex: 1; text-align: center; font-size: 16px; font-weight: 600; }
 .btn-nav {
   background: var(--bg4); color: var(--text); border: 1px solid var(--border);
   border-radius: 6px; padding: 4px 12px; font-size: 14px; cursor: pointer;
 }
 .btn-nav:hover { background: var(--accent2); color: #fff; border-color: var(--accent2); }
-
-.anno-body {
-  height: auto; flex: 1; min-height: 0; overflow-y: auto;
-}
-.anno-body.batch-active {
-  height: auto;
-}
-#view-annotate.active {
-  flex: 1; min-height: 0; display: flex; flex-direction: column;
-}
-.detail-cols {
-  display: flex; gap: 24px; align-items: flex-start;
-}
-.detail-left-panel {
-  width: 42%; min-width: 320px; flex-shrink: 0;
-}
-.detail-right-panel {
-  flex: 1; min-width: 0;
-  border-left: 1px solid var(--border); padding-left: 20px;
-}
-.detail-right-panel h4 {
-  font-size: 14px; color: var(--text2); margin-bottom: 10px;
-}
 
 /* 参考资料卡片（竖排） */
 .xref-stack { display: flex; flex-direction: column; gap: 8px; }
@@ -264,60 +265,14 @@ main > .view.active:not(#view-write) { flex: 1; min-height: 0; overflow-y: auto;
 .xref-note { font-size: 12px; color: var(--text2); line-height: 1.5; max-height: 120px; overflow-y: auto; }
 .xref-sm { font-size: 12px; color: var(--text2); word-break: break-all; }
 .xref-series { font-size: 13px; font-weight: 700; color: var(--accent); }
-.ids-val { font-family: monospace; font-size: 13px; }
 
-/* 字符详情行内编辑 */
-.detail-header {
-  text-align: center; margin-bottom: 16px; padding-bottom: 12px;
-  border-bottom: 1px solid var(--border);
-}
-.detail-header .big-glyph { font-size: 72px; display: block; }
-.detail-header .cp { font-size: 13px; color: var(--text2); margin-top: 2px; }
-.detail-section { margin-bottom: 16px; }
-.detail-section h4 {
-  font-size: 14px; color: var(--text2); margin-bottom: 8px;
-}
 .anno-card {
   background: var(--bg); border: 1px solid var(--border);
   border-radius: 8px; padding: 12px; margin-bottom: 8px;
 }
 .anno-card .field { margin-bottom: 6px; }
 .anno-card .field-label { font-size: 12px; color: var(--text2); display: block; margin-bottom: 2px; }
-.anno-card .field-input {
-  width: 100%; box-sizing: border-box;
-  background: var(--bg2); border: 1px solid var(--border);
-  color: var(--text); border-radius: 4px; padding: 4px 8px;
-  font-size: 13px; font-family: inherit;
-}
-.anno-card .field-input:focus { outline: none; border-color: var(--accent); }
-.anno-card .actions { margin-top: 6px; display: flex; gap: 6px; }
 .btn-sm { font-size: 12px; padding: 3px 10px; }
-
-/* 添加新标注 */
-.anno-add-inline {
-  margin-top: 16px; padding-top: 12px;
-  border-top: 1px solid var(--border);
-}
-.anno-add-inline h4 { font-size: 14px; color: var(--text2); margin-bottom: 8px; }
-.anno-add-inline .field { margin-bottom: 8px; }
-.anno-add-inline .field-label { font-size: 12px; color: var(--text2); display: block; margin-bottom: 2px; }
-.anno-add-inline .field-label .hint { font-weight: 400; font-size: 11px; }
-.anno-add-inline .field-input {
-  width: 100%; box-sizing: border-box;
-  background: var(--bg2); border: 1px solid var(--border);
-  color: var(--text); border-radius: 4px; padding: 4px 8px;
-  font-size: 13px; font-family: inherit;
-}
-.anno-add-inline .field-input:focus { outline: none; border-color: var(--accent); }
-.ref-filter-row { margin-bottom: 6px; }
-.ref-filter-input {
-  width: 100%; box-sizing: border-box;
-  background: var(--bg2); border: 1px solid var(--border);
-  color: var(--text2); border-radius: 4px; padding: 4px 8px;
-  font-size: 12px; font-family: inherit;
-}
-.ref-filter-input:focus { outline: none; border-color: var(--accent); color: var(--text); }
-.ref-hint { font-size: 12px; color: var(--text2); padding: 4px 0; display: block; }
 
 /* 弹窗（仅 extra 用） */
 .overlay {
@@ -358,17 +313,6 @@ main > .view.active:not(#view-write) { flex: 1; min-height: 0; overflow-y: auto;
 }
 .data-table td { padding: 8px 12px; border-bottom: 1px solid var(--border); }
 .data-table tr:hover td { background: var(--bg3); }
-
-/* ─── 参考建议 ───────────────────────────────────────── */
-.ref-suggestions {
-  display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px;
-}
-.ref-suggestions .ref-tag {
-  background: var(--bg4); color: var(--accent); border-radius: 4px;
-  padding: 2px 8px; font-size: 11px; cursor: pointer;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;
-}
-.ref-suggestions .ref-tag:hover { filter: brightness(1.3); }
 
 /* ─── 其他 ───────────────────────────────────────────── */
 .empty { color: var(--text2); text-align: center; padding: 40px; }
@@ -445,47 +389,6 @@ main > .view.active:not(#view-write) { flex: 1; min-height: 0; overflow-y: auto;
 .gp-cell .gp-n { font-family: "Cascadia Mono", monospace; font-size: 10px; color: var(--text2); }
 .gp-cell .gp-z { font-size: 11px; color: var(--text2); }
 
-/* ─── 批量编辑 ───────────────────────────────────────── */
-.batch-char-strip {
-  display: flex; gap: 4px; padding: 8px 0; margin-bottom: 12px;
-  overflow-x: auto; border-bottom: 1px solid var(--border);
-  flex-shrink: 0;
-}
-.batch-strip-item {
-  flex-shrink: 0; cursor: pointer; font-size: 20px; padding: 4px 10px;
-  border-radius: 6px; background: var(--bg2); border: 1px solid var(--border);
-  text-align: center; min-width: 36px; transition: .15s;
-}
-.batch-strip-item:hover { border-color: var(--accent); }
-.batch-strip-item.active {
-  background: var(--accent2); color: #fff; border-color: var(--accent2);
-}
-.batch-strip-item.has-anno { border-left: 3px solid var(--success); }
-.batch-strip-item {
-  position: relative;
-}
-.strip-con-hint {
-  display: block; font-size: 9px; color: var(--text2); line-height: 1;
-  margin-top: 1px; max-width: 36px; overflow: hidden; text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.batch-panel {
-  background: var(--bg3); border: 1px solid var(--border);
-  border-radius: 8px; padding: 8px 12px; margin-bottom: 12px;
-}
-.batch-toolbar {
-  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
-  margin-bottom: 4px;
-}
-.batch-toolbar input { max-width: 200px; }
-.batch-toolbar .badge { margin-left: 0; }
-.batch-ids-tag {
-  background: var(--bg4); border-radius: 3px; padding: 2px 8px;
-  font-size: 12px; font-family: monospace; color: var(--text2);
-  white-space: nowrap; margin: 1px;
-}
-
-/* ═══════════════════════════════════════════════════════════
    写作视图（抽构札记 / Markdown 论文式编辑器）
    ═══════════════════════════════════════════════════════════ */
 
@@ -1233,7 +1136,6 @@ h1, h2, h3, h4, h5, h6, th, b, strong,
 .markdown-body h1, .markdown-body h2, .markdown-body h3,
 .markdown-body h4, .markdown-body h5, .markdown-body h6, .markdown-body th,
 .site-title,
-#anno-char-label,
 .xref-title, .xref-series,
 .data-table th,
 .write-empty h3,

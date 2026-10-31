@@ -1434,26 +1434,36 @@ function confirmLeave(then) {
   else { markDirty(false); then(); }
 }
 
+/** 在左侧字表里定位到某个字（翻到它所在的页，清掉搜索/区段过滤） */
+function focusChar(ch) {
+  if ($("doc-search").value.trim()) $("doc-search").value = "";
+  if (WR.allChars) {
+    const i = WR.allChars.findIndex(function (x) { return x.char === ch; });
+    if (i >= 0) {
+      WR.blockFilter = "__all__";
+      document.querySelectorAll(".block-filter .blk-chip").forEach(function (b) {
+        b.classList.toggle("active", b.getAttribute("data-block") === "__all__");
+      });
+      WR.chars = WR.allChars;
+      WR.page = Math.floor(i / WR.perPage) + 1;   // 跳到这个字所在页
+      renderCharList();
+    }
+  }
+  openDoc(ch);
+}
+
 function gotoChar() {
   const c = window.prompt("跳到哪个字？");
   if (!c || !c.trim()) return;
-  confirmLeave(function () {
-    const ch = c.trim();
-    if (WR.allChars) {
-      const i = WR.allChars.findIndex(function (x) { return x.char === ch; });
-      if (i >= 0) {
-        WR.blockFilter = "__all__";
-        document.querySelectorAll(".block-filter .blk-chip").forEach(function (b) {
-          b.classList.toggle("active", b.getAttribute("data-block") === "__all__");
-        });
-        WR.chars = WR.allChars;
-        WR.page = Math.floor(i / WR.perPage) + 1;   // 跳到这个字所在页
-        renderCharList();
-      }
-    }
-    openDoc(ch);
-  });
+  confirmLeave(function () { focusChar(c.trim()); });
 }
+
+/** 从别的视图（广义汉字）跳到某个字 */
+function writerOpenChar(ch) {
+  confirmLeave(function () { focusChar(ch); });
+}
+
+window.writerOpenChar = writerOpenChar;
 
 // ─── 事件绑定 ────────────────────────────────────────────
 

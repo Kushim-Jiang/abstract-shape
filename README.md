@@ -60,9 +60,30 @@ Keyboard: `Ctrl+S` save, `Ctrl+E` toggle edit/preview, `Ctrl+↑` `Ctrl+↓` pre
 The `▶ 未写` button jumps to the first character in the current filter that has
 no notes yet.
 
+### 甲骨文 / 金文 字形标注
+
+The 甲骨文 and 金文 views list the glyphs themselves (`backend/data/ob.jsonl`,
+`bi.jsonl`). Under each glyph, the 汉字字形 it stands for are shown as chips:
+
+* `＋` opens a one-line input — type the character and press Enter; spaces, `,`、
+  `、` or `;` split several characters into several chips at once; `Esc` cancels;
+* `×` deletes that chip;
+* the toolbar search matches 编号 and the annotated characters too.
+
+Each chip is one entry of `annotations` (`con`), so existing records keep working:
+
+```json
+{"num": "0002", "glyph": "󰀁",
+ "annotations": [{"con": "匕(妣)", "ref": "", "comm": ""}, {"con": "匕(比)", "ref": "", "comm": ""}]}
+```
+
+Both files reuse the same 编号 for several glyphs (拓片号), so a record is located
+by `num` + `glyph`; the endpoints are `POST /api/ob/annotate`,
+`/api/ob/annotate/delete` and the same pair for `/api/bi/…`.
+
 ### Shape input formatting
 
-抽构 / 参考抽构 are formatted as you type (same inputs in 标注 / 甲骨文):
+抽构 / 参考抽构 are formatted as you type:
 
 * full-width `（）［］` become half-width, spaces are dropped;
 * once the expression parses, the canonical form is written back with every

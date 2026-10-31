@@ -605,9 +605,14 @@ def search_ob(q: str = Query(""), limit: int = Query(100), offset: int = Query(0
 
 @app.get("/api/bi/search")
 def search_bi(q: str = Query(""), limit: int = Query(100), offset: int = Query(0)):
-    """金文：bi.jsonl 只有 num（编号）和 glyph（ZihuiSongJW 私用区字形）。"""
+    """金文：bi.jsonl 有 num（编号）、glyph（ZihuiSongJW 私用区字形）和可选的汉字字形标注。"""
     def bi_match(b):
-        return q in str(b.get("glyph", "")) or q in str(b.get("num", ""))
+        if q in str(b.get("glyph", "")) or q in str(b.get("num", "")):
+            return True
+        for a in b.get("annotations", []):
+            if q and q in a.get("con", ""):
+                return True
+        return False
 
     results = [b for b in _bi if bi_match(b)] if q else _bi
     total = len(results)
@@ -637,10 +642,14 @@ class OBAnnotationDelete(BaseModel):
     index: int
 
 
-def _find_ob_entry(num: str) -> dict | None:
+def _find_ob_entry(num: str, glyph: str = "") -> dict | None:
+    """编号会重号（一个号下好几个字形），所以有字形时按 num + glyph 定位"""
     for e in _ob:
-        if e.get("num") == num:
-            return e
+        if e.get("num") != num:
+            continue
+        if glyph and e.get("glyph") != glyph:
+            continue
+        return e
     return None
 
 
@@ -650,20 +659,24 @@ def _save_ob():
 
 @app.post("/api/ob/annotate")
 def ob_add_annotation(data: OBAnnotation):
-    entry = _find_ob_entry(data.num)
+    """给一个甲骨文字形加一条汉字字形标注"""
+    con = data.con.strip()
+    if not con:
+        return {"status": "error", "detail": "empty"}
+    entry = _find_ob_entry(data.num, data.glyph)
     if not entry:
         entry = {"num": data.num, "glyph": data.glyph, "annotations": []}
         _ob.append(entry)
     if "annotations" not in entry:
         entry["annotations"] = []
-    entry["annotations"].append({"con": data.con, "ref": data.ref, "comm": data.comm})
+    entry["annotations"].append({"con": con, "ref": data.ref, "comm": data.comm})
     _save_ob()
     return {"status": "ok", "annotations": entry["annotations"]}
 
 
 @app.post("/api/ob/annotate/update")
 def ob_update_annotation(data: OBAnnotationEdit):
-    entry = _find_ob_entry(data.num)
+    entry = _find_ob_entry(data.num, data.glyph)
     if not entry:
         return {"status": "error", "detail": "not found"}
     annos = entry.get("annotations", [])
@@ -680,13 +693,60 @@ def ob_update_annotation(data: OBAnnotationEdit):
 
 @app.post("/api/ob/annotate/delete")
 def ob_delete_annotation(data: OBAnnotationDelete):
-    entry = _find_ob_entry(data.num)
+    entry = _find_ob_entry(data.num, data.glyph)
     if not entry:
         return {"status": "error", "detail": "not found"}
     annos = entry.get("annotations", [])
     if 0 <= data.index < len(annos):
         del annos[data.index]
         _save_ob()
+    return {"status": "ok", "annotations": annos}
+
+
+class BIAnnotation(BaseModel):
+    num: str
+    glyph: str = ""
+    con: str = ""
+
+
+def _find_bi_entry(num: str, glyph: str = "") -> dict | None:
+    """金文的编号（num）是拓片号，一个号下有好几个字形，所以有字形时按 num + glyph 定位"""
+    for e in _bi:
+        if e.get("num") != num:
+            continue
+        if glyph and e.get("glyph") != glyph:
+            continue
+        return e
+    return None
+
+
+def _save_bi():
+    _save_jsonl("bi.jsonl", _bi)
+
+
+@app.post("/api/bi/annotate")
+def bi_add_annotation(data: BIAnnotation):
+    """给一个金文字形加一条汉字字形标注"""
+    con = data.con.strip()
+    if not con:
+        return {"status": "error", "detail": "empty"}
+    entry = _find_bi_entry(data.num, data.glyph)
+    if not entry:
+        return {"status": "error", "detail": "not found"}
+    entry.setdefault("annotations", []).append({"con": con, "ref": "", "comm": ""})
+    _save_bi()
+    return {"status": "ok", "annotations": entry["annotations"]}
+
+
+@app.post("/api/bi/annotate/delete")
+def bi_delete_annotation(data: OBAnnotationDelete):
+    entry = _find_bi_entry(data.num, data.glyph)
+    if not entry:
+        return {"status": "error", "detail": "not found"}
+    annos = entry.get("annotations", [])
+    if 0 <= data.index < len(annos):
+        del annos[data.index]
+        _save_bi()
     return {"status": "ok", "annotations": annos}
 
 
