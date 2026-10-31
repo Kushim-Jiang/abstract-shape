@@ -1246,15 +1246,16 @@ FRONTEND_DIR = Path(__file__).parent.parent / "frontend"
 
 @app.get("/")
 def serve_index():
-    return FileResponse(FRONTEND_DIR / "index.html")
+    # 本地工具：每次都跟服务器核对一遍，免得改了前端还要手动强刷
+    return FileResponse(FRONTEND_DIR / "index.html", headers={"Cache-Control": "no-cache"})
 
 
 @app.get("/{path:path}")
 def serve_static(path: str):
     file_path = FRONTEND_DIR / path
     if file_path.exists() and file_path.is_file():
-        return FileResponse(file_path)
-    return FileResponse(FRONTEND_DIR / "index.html")
+        return FileResponse(file_path, headers={"Cache-Control": "no-cache"})
+    return FileResponse(FRONTEND_DIR / "index.html", headers={"Cache-Control": "no-cache"})
 
 
 if __name__ == "__main__":
