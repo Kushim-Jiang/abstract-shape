@@ -153,10 +153,15 @@ def seal_candidates(char: str = "", q: str = "", limit: int = 240) -> dict:
         push([i for i in _SEAL["by_char"].get(char, []) if i["zi_strict"] == char])
         push(_SEAL["by_char"].get(char, []))
     if q:
-        low = q.lower()
+        low = q.lower().strip()
+        # 允许直接贴 `U+3D1B6` / `3d1b6`：这是表里 `unicode` 那一列，
+        # 再经 `unicode_cid` 映射到字体里的字形
+        if low.startswith("u+"):
+            low = low[2:].strip()
+        low = low.lstrip("0") or low
         push([i for i in _SEAL["all"]
               if low in i["cid"].lower() or low in i["zi"] or low in i["zi_strict"]
-              or low in i["id"] or low in i["unicode"]])
+              or low in i["id"] or low in i["unicode"].lower()])
     total = len(out)
     return {"results": out[:limit], "total": total}
 
