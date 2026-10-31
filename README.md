@@ -89,7 +89,7 @@ Fields with problems are outlined in red.
 | `arity` | error | an IDC operator has the wrong number of operands |
 | `bracket` / `extra` | error | brackets do not pair, or there is trailing junk |
 | `missing-unit` | warning | a component `[下]` has no record of its own whose 抽构 is `[下]` |
-| `dup-unit` | error | two or more records use the same shape as their 抽构 — `[下]`, `⿰[虫][下]`, anything; only one may own it, the rest must be `=…` |
+| `dup-unit` | error | two or more records use the same shape as their 抽构 — `[下]`, `⿰[虫][下]`, `[與]=⿶[舁][牙]` (head included), anything; only one may own it, the rest must be `=…` |
 | `no-ref` | error | a cited reference id does not exist |
 | `page-range` | error | a cited page falls outside the reference's own `pages` |
 
@@ -150,9 +150,16 @@ A shape is either a single component or an IDC operator followed by its
 operands:
 
 ```
-<expr> ::= <char> | <op> <expr> <expr> | <op> <expr> <expr> <expr>
-<char> ::= 汉字 | 汉字(变体)
+<shape> ::= [<char>=] <expr>
+<expr>  ::= <char> | <op> <expr> <expr> | <op> <expr> <expr> <expr>
+<char>  ::= 汉字 | 汉字(变体)
 ```
+
+The optional `[與]=` head spells out which character is being decomposed, so
+`[與]=⿶[舁][牙]` reads「與 分解为 ⿶舁牙」. The head is not a component: it does
+not count as a leaf, it is kept (in brackets) by the formatter, and 核验 treats
+`[與]=…` and `…` as two different definitions — the same head + body written
+twice is still a `dup-unit`.
 
 17 operators are supported (`backend/shape.py` → `IDC.ARITY`):
 
@@ -178,9 +185,16 @@ The editor validates as you type and reports the exact position of a mistake:
 journal, booktitle, publisher, address, year, date, volume, number, pages,
 edition, url, doi, note). Two sources, merged by `id`:
 
-- `backend/data/papers.json` — 97 upstream records, **read-only**; saving one
+- `backend/data/papers.json` — 95 upstream records, **read-only**; saving one
   writes an override instead of touching the upstream file;
 - `abstract-shape/references.ndjson` — locally added / edited records (`R001`…).
+
+The citation line is built from the fields, and `date` wins over `year`. `date`
+takes the month/day shorthand, so `3` = 3月 and `3.12` = 3月12日 with the year
+coming from `year`; a full `2007-05-01` (or `2007/5/1`, `2007.5.1`,
+`2007年5月1日`) carries its own year. Everything is stored as `2007-05-01`,
+`2007-05`, `03-12` or `03`, and printed as `2007年5月1日` / `2007年3月12日`; with
+no date at all the citation keeps the plain `2007年`.
 
 ### Character ordering
 
