@@ -830,6 +830,7 @@ class EntrySaveRequest(BaseModel):
     con: str = ""             # 抽构（IDS）
     ref_con: str = ""         # 参考抽构
     ob: list[str] = []        # 甲骨文编号（ob.jsonl 的 `num`）
+    bi: list[str] = []        # 金文字形（bi.jsonl 的 `glyph`，编号会重号）
     xz: list[str] = []        # 小篆序号（seal.ndjson 的 `num`）
     notes: str = ""           # 札记正文（Markdown）；文献引用写成 `[ref:C001.244-245+248]`
 
@@ -1039,6 +1040,12 @@ def glyph_ob(char: str = Query(""), q: str = Query(""), limit: int = Query(240))
     return glyphs.ob_candidates(char, q, limit)
 
 
+@app.get("/api/glyphs/bi")
+def glyph_bi(char: str = Query(""), q: str = Query(""), limit: int = Query(240)):
+    """金文候选：给一个字就列出标注到它的金文字形，`q` 用来按拓片号 / 释文搜。"""
+    return glyphs.bi_candidates(char, q, limit)
+
+
 # ─── 条（entry）API ───────────────────────────────────────
 #
 # 一条 = 一行 ndjson，键是 (字, 条号)，前端引用写作 `丂-1`。
@@ -1154,7 +1161,7 @@ def save_entry(char: str, data: EntrySaveRequest):
     # 引用是从札记正文的 `[ref:…]` 解析出来的，不单独传
     rec = entrystore.write_entry(
         c, data.seq, con=data.con, ref_con=data.ref_con, notes=data.notes,
-        ob=glyphs.known_ob(data.ob), xz=glyphs.known_seal(data.xz),
+        ob=glyphs.known_ob(data.ob), bi=glyphs.known_bi(data.bi), xz=glyphs.known_seal(data.xz),
     )
     return {
         "status": "ok",

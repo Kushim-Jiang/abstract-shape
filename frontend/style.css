@@ -389,6 +389,7 @@ main > .view.active:not(#view-write) { flex: 1; min-height: 0; overflow-y: auto;
 .gp-cell .gp-n { font-family: "Cascadia Mono", monospace; font-size: 10px; color: var(--text2); }
 .gp-cell .gp-z { font-size: 11px; color: var(--text2); }
 
+/* ═══════════════════════════════════════════════════════════
    写作视图（抽构札记 / Markdown 论文式编辑器）
    ═══════════════════════════════════════════════════════════ */
 
@@ -841,8 +842,8 @@ body.col-resizing * { cursor: col-resize !important; }
 .note-form { display: flex; flex-direction: column; gap: 12px; }
 
 .nf-row { display: flex; flex-direction: column; gap: 5px; }
-/* 两个字段并排：抽构 / 参考抽构、甲骨文 / 小篆 */
-.nf-row.nf-pair { flex-direction: row; gap: 14px; align-items: flex-start; }
+/* 并排字段（抽构 / 参考抽构、甲骨文 / 金文 / 小篆）：始终一行，等宽 */
+.nf-row.nf-pair { flex-direction: row; gap: 12px; align-items: flex-start; }
 .nf-pair > .nf-cell {
   flex: 1 1 0; min-width: 0;
   display: flex; flex-direction: column; gap: 5px;

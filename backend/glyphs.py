@@ -1,7 +1,7 @@
 """
-甲骨文 / 小篆 字形表
+甲骨文 / 金文 / 小篆 字形表
 
-两种字形都是「表外字」：字体文件把每个字形放在私用区，码位 = `0xF0000 + 序号 - 1`。
+三种字形都是「表外字」：字体文件把每个字形放在私用区，码位 = `0xF0000 + 序号 - 1`。
 
   * **小篆**：`backend/data/seal.ndjson`，每条就是 `{num, glyph, char}`：
     `num` 是字体里的字形序号（`00001`–`11108`），`glyph` 是私用区字符
@@ -10,8 +10,11 @@
   * **甲骨文**：`backend/data/ob.jsonl`，每条就是 `{num, glyph, annotations}`，
     `glyph` 本身就是私用区字符（和 `ZihuiSongJGW.ttf` 对应）；按标注里的
     `con`（如 `匕(妣)`）找到跟某个今字对应的卜辞字形。
+  * **金文**：`backend/data/bi.jsonl`，同样是 `{num, glyph, annotations}`，
+    字体 `ZihuiSongJW.otf`。`num` 是拓片号，一个号下有好几个字形，
+    所以对外用字形本身（`glyph`）当标识。
 
-对外只提供「候选列表」：给一个字，返回两种字形的可选项，前端负责多选。
+对外只提供「候选列表」：给一个字，返回各种字形的可选项，前端负责多选。
 """
 
 from __future__ import annotations
@@ -25,6 +28,7 @@ REPO = DATA_DIR.parent.parent
 
 SEAL_FILE = DATA_DIR / "seal.ndjson"
 OB_FILE = DATA_DIR / "ob.jsonl"
+BI_FILE = DATA_DIR / "bi.jsonl"
 
 #: 字形码位起点（两种字体都用这一区段）
 PUA_BASE = 0xF0000
@@ -38,6 +42,7 @@ _CON_SPLIT_RE = re.compile(r"[\[\(（]")
 
 _SEAL: dict = {"mtime": None, "by_char": {}, "all": []}
 _OB: dict = {"mtime": None, "by_char": {}, "all": []}
+_BI: dict = {"mtime": None, "by_char": {}, "all": []}
 
 
 def _mtime(path: Path) -> float:
@@ -118,6 +123,42 @@ def _load_ob() -> None:
     _OB.update(mtime=mtime, by_char=by_char, all=rows)
 
 
+def _load_bi() -> None:
+    """金文：和甲骨文同样读法，但标识用 `glyph`（编号是拓片号，会重号）。"""
+    mtime = _mtime(BI_FILE)
+    if _BI["mtime"] == mtime:
+        return
+    by_char: dict[str, list[dict]] = {}
+    rows: list[dict] = []
+    if mtime >= 0:
+        with open(BI_FILE, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    rec = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                num = str(rec.get("num") or "").strip()
+                glyph = rec.get("glyph") or ""
+                if not num or not glyph:
+                    continue
+                anns = rec.get("annotations") or []
+                item = {
+                    "num": num,
+                    "glyph": glyph,
+                    "con": [a.get("con", "") for a in anns if a.get("con")],
+                    "comm": " ".join(a.get("comm", "") for a in anns if a.get("comm")),
+                }
+                rows.append(item)
+                for con in item["con"]:
+                    zi = _con_char(con)
+                    if zi:
+                        by_char.setdefault(zi, []).append(item)
+    _BI.update(mtime=mtime, by_char=by_char, all=rows)
+
+
 # ─── 对外 ──────────────────────────────────────────────────
 
 
@@ -169,8 +210,40 @@ def ob_candidates(char: str = "", q: str = "", limit: int = 240) -> dict:
         push([i for i in _OB["all"]
               if low in i["num"] or low in i["comm"]
               or any(low in c.lower() for c in i["con"])])
+    if not out:
+        # 这个字还没有标注过：先列出全部，方便按编号翻
+        return {"results": _OB["all"][:limit], "total": len(_OB["all"]), "browse": True}
     total = len(out)
-    return {"results": out[:limit], "total": total}
+    return {"results": out[:limit], "total": total, "browse": False}
+
+
+def bi_candidates(char: str = "", q: str = "", limit: int = 240) -> dict:
+    """金文候选：先给标注里就是这个字的，再按编号 / 字 / 释文搜索。"""
+    _load_bi()
+    char = (char or "").strip()
+    q = (q or "").strip()
+    out: list[dict] = []
+    seen: set[str] = set()
+
+    def push(items):
+        for it in items:
+            if it["glyph"] in seen:
+                continue
+            seen.add(it["glyph"])
+            out.append(it)
+
+    if char:
+        push(_BI["by_char"].get(char, []))
+    if q:
+        low = q.lower()
+        push([i for i in _BI["all"]
+              if low in i["num"] or low in i["comm"]
+              or any(low in c.lower() for c in i["con"])])
+    if not out:
+        # 这个字还没有标注过：先列出全部，方便按拓片号翻
+        return {"results": _BI["all"][:limit], "total": len(_BI["all"]), "browse": True}
+    total = len(out)
+    return {"results": out[:limit], "total": total, "browse": False}
 
 
 def known_ob(nums) -> list[str]:
@@ -178,6 +251,13 @@ def known_ob(nums) -> list[str]:
     _load_ob()
     valid = {i["num"] for i in _OB["all"]}
     return [str(n) for n in (nums or []) if str(n) in valid]
+
+
+def known_bi(glyphs) -> list[str]:
+    """过滤出确实存在的金文字形（保存时用）。"""
+    _load_bi()
+    valid = {i["glyph"] for i in _BI["all"]}
+    return [str(g) for g in (glyphs or []) if str(g) in valid]
 
 
 def known_seal(nums) -> list[str]:
@@ -190,4 +270,5 @@ def known_seal(nums) -> list[str]:
 def stats() -> dict:
     _load_seal()
     _load_ob()
-    return {"seal": len(_SEAL["all"]), "ob": len(_OB["all"])}
+    _load_bi()
+    return {"seal": len(_SEAL["all"]), "ob": len(_OB["all"]), "bi": len(_BI["all"])}

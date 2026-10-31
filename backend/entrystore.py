@@ -9,6 +9,8 @@
   * `con`      抽构（IDS 表达式，`backend/shape.py` 校验，可空）
   * `ref_con`  参考抽构（同上，通常是 `=字` / `*字` 这种非 IDS 写法，不做校验）
   * `ob`       甲骨文：`backend/data/ob.jsonl` 里的编号，如 `["0001", "0200"]`
+  * `bi`       金文：`backend/data/bi.jsonl` 里的字形本身（私用区字符序列唯一），
+                 因为金文的编号是拓片号、一个号下有好几个字形
   * `xz`       小篆：`backend/data/seal.ndjson` 里的序号，如 `["01998"]`
   * `notes`    札记正文（自由 Markdown），**文献引用直接写在正文里**：
                  `[ref:文献编号.页码]`，如 `[ref:C001.244-245+248]`
@@ -132,7 +134,7 @@ def refs_from_notes(notes: str) -> list[dict]:
 
 
 def _clean_ids(values) -> list[str]:
-    """字形编号列表：去空、去重、保序。"""
+    """字形标识列表：去空、去重、保序。"""
     out: list[str] = []
     for v in values or []:
         s = str(v).strip()
@@ -163,6 +165,7 @@ def _norm_entry(rec: dict) -> dict | None:
         "con": (rec.get("con") or "").strip(),
         "ref_con": (rec.get("ref_con") or "").strip(),
         "ob": _clean_ids(rec.get("ob")),
+        "bi": _clean_ids(rec.get("bi")),
         "xz": _clean_ids(rec.get("xz")),
         "notes": notes,
         "refs": refs,
@@ -228,6 +231,8 @@ def _flush() -> None:
                 out["ref_con"] = e["ref_con"]
             if e["ob"]:
                 out["ob"] = e["ob"]
+            if e["bi"]:
+                out["bi"] = e["bi"]
             if e["xz"]:
                 out["xz"] = e["xz"]
             if e["notes"]:
@@ -323,11 +328,11 @@ def parse_key(key: str) -> tuple[str, int] | None:
 
 
 def write_entry(char: str, seq: int, con: str = "", ref_con: str = "",
-                notes: str = "", refs=None, ob=None, xz=None) -> dict:
+                notes: str = "", refs=None, ob=None, bi=None, xz=None) -> dict:
     """写入 / 覆盖一条。seq<=0 时自动分配下一个可用条号。
 
     引用一律从札记正文的 `[ref:编号.页码]` 解析；`refs` 参数只留给导入脚本用。
-    `ob` / `xz` 是这条札记对应的卜辞字形编号与小篆 sid。
+    `ob` / `bi` / `xz` 是这条札记对应的甲骨文编号、金文字形与小篆序号。
     """
     _load()
     char = char.strip()
@@ -341,6 +346,7 @@ def write_entry(char: str, seq: int, con: str = "", ref_con: str = "",
         "con": (con or "").strip(),
         "ref_con": (ref_con or "").strip(),
         "ob": _clean_ids(ob),
+        "bi": _clean_ids(bi),
         "xz": _clean_ids(xz),
         "notes": notes,
         "refs": refs_from_notes(notes) if refs is None else _clean_refs(refs),

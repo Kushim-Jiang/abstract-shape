@@ -6,7 +6,8 @@
  *
  * 支持：标题 / 粗体 / 斜体（`_…_`）/ 行内代码 / 代码块 / 引用 / 有序无序列表 /
  *       任务列表 / 表格 / 分隔线 / 链接 / 图片 / 自动链接
- * 扩展：[[丂-1]] 跨札记引用、[[文献: ID]] 文献引用
+ * 扩展：[[丂-1]] 跨札记引用、[ref:C001.244] 文献引用、
+ *       [ob:0001,0200] / [bi:󰀀] / [seal:01998] 字形
  *
  * 注意：`*…*` 不做斜体 —— `*` 在本资料里表示「构拟」（如 `*考`），
  * 只有 `**…**` 是粗体、`_…_` 是斜体。
@@ -34,16 +35,25 @@ function mdInline(text, opts) {
     return "\u0000C" + (codes.length - 1) + "\u0000";
   });
 
-  // 字形：[[卜:0001,0200]] 甲骨文 / [[篆:01998]] 小篆
-  // 两种字体都把字形放在私用区，码位 = 0xF0000 + 序号 - 1
-  s = s.replace(/\[\[\s*([卜篆])\s*[:：]\s*([^\]]+)\]\]/g, function (_, kind, ids) {
-    const chars = String(ids).split(/[,\s，、]+/).map(function (id) {
+  // 字形：[ob:0001,0200] 甲骨文 / [bi:󰀀,󰀁] 金文 / [seal:01998] 小篆
+  // 甲骨文与小篆写编号（字体里码位 = 0xF0000 + 序号 - 1），金文直接写字形本身。
+  // 旧的 `[[卜:…]]` / `[[金:…]]` / `[[篆:…]]` 写法继续认。
+  const glyphSpan = function (kind, ids) {
+    const chars = String(ids).split(/[,\s，、]+/).filter(Boolean).map(function (id) {
+      if (kind === "bi") return id;            // 金文写的就是私用区字形
       const n = parseInt(String(id).replace(/[^0-9]/g, ""), 10);
       return n >= 1 ? String.fromCodePoint(0xF0000 + n - 1) : "";
     }).join("");
     if (!chars) return "";
-    return '<span class="md-glyph ' +
-      (kind === "卜" ? "ob-glyph" : "xz-glyph") + '">' + chars + "</span>";
+    const cls = kind === "ob" ? "ob-glyph" : kind === "bi" ? "bi-glyph" : "xz-glyph";
+    return '<span class="md-glyph ' + cls + '">' + chars + "</span>";
+  };
+  const GLYPH_KIND = { 卜: "ob", 金: "bi", 篆: "seal" };
+  s = s.replace(/\[\s*(ob|bi|seal)\s*[:：]\s*([^\]\n]+)\]/gi, function (_, kind, ids) {
+    return glyphSpan(String(kind).toLowerCase(), ids);
+  });
+  s = s.replace(/\[\[\s*([卜金篆])\s*[:：]\s*([^\]]+)\]\]/g, function (_, kind, ids) {
+    return glyphSpan(GLYPH_KIND[kind] || "ob", ids);
   });
 
   // 跨札记引用 [[丂-1]] / [[丂-1-2]]（字符-序号，字符可含连字符时贪心匹配到最后的序号）
