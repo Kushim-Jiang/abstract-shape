@@ -11,8 +11,11 @@
     `glyph` 本身就是私用区字符（和 `ZihuiSongJGW.ttf` 对应）；按标注里的
     `con`（如 `匕(妣)`）找到跟某个今字对应的卜辞字形。
   * **金文**：`backend/data/bi.jsonl`，同样是 `{num, glyph, annotations}`，
-    字体 `ZihuiSongJW.otf`。`num` 是拓片号，一个号下有好几个字形，
-    所以对外用字形本身（`glyph`）当标识。
+    字体 `ZihuiSongJW.otf`。
+
+三张表的 `num` 都做过去重（重号的第二、三个加 A、B 后缀，如 `0001A`），
+可以当唯一标识用；因为甲骨文 / 金文的编号不再等于码位序号，前端要画字形就得
+查 `/api/glyphs/index` 的对照表。小篆的码位仍可由序号算出来。
 
 对外只提供「候选列表」：给一个字，返回各种字形的可选项，前端负责多选。
 """
@@ -124,7 +127,7 @@ def _load_ob() -> None:
 
 
 def _load_bi() -> None:
-    """金文：和甲骨文同样读法，但标识用 `glyph`（编号是拓片号，会重号）。"""
+    """金文：读法与甲骨文相同。"""
     mtime = _mtime(BI_FILE)
     if _BI["mtime"] == mtime:
         return
@@ -227,9 +230,9 @@ def bi_candidates(char: str = "", q: str = "", limit: int = 240) -> dict:
 
     def push(items):
         for it in items:
-            if it["glyph"] in seen:
+            if it["num"] in seen:
                 continue
-            seen.add(it["glyph"])
+            seen.add(it["num"])
             out.append(it)
 
     if char:
@@ -240,7 +243,7 @@ def bi_candidates(char: str = "", q: str = "", limit: int = 240) -> dict:
               if low in i["num"] or low in i["comm"]
               or any(low in c.lower() for c in i["con"])])
     if not out:
-        # 这个字还没有标注过：先列出全部，方便按拓片号翻
+        # 这个字还没有标注过：先列出全部，方便按编号翻
         return {"results": _BI["all"][:limit], "total": len(_BI["all"]), "browse": True}
     total = len(out)
     return {"results": out[:limit], "total": total, "browse": False}
@@ -253,11 +256,11 @@ def known_ob(nums) -> list[str]:
     return [str(n) for n in (nums or []) if str(n) in valid]
 
 
-def known_bi(glyphs) -> list[str]:
-    """过滤出确实存在的金文字形（保存时用）。"""
+def known_bi(nums) -> list[str]:
+    """过滤出确实存在的金文编号（保存时用）。"""
     _load_bi()
-    valid = {i["glyph"] for i in _BI["all"]}
-    return [str(g) for g in (glyphs or []) if str(g) in valid]
+    valid = {i["num"] for i in _BI["all"]}
+    return [str(n) for n in (nums or []) if str(n) in valid]
 
 
 def known_seal(nums) -> list[str]:
@@ -265,6 +268,20 @@ def known_seal(nums) -> list[str]:
     _load_seal()
     valid = {i["num"] for i in _SEAL["all"]}
     return [str(s) for s in (nums or []) if str(s) in valid]
+
+
+def glyph_index() -> dict:
+    """编号 → 字形字符（甲骨文 / 金文）。
+
+    小篆的码位能由序号算出来，甲骨文 / 金文的编号去过重（`0001A` 这种），
+    算不出来，所以前端要一份对照表来画小方块。
+    """
+    _load_ob()
+    _load_bi()
+    return {
+        "ob": {i["num"]: i["glyph"] for i in _OB["all"]},
+        "bi": {i["num"]: i["glyph"] for i in _BI["all"]},
+    }
 
 
 def stats() -> dict:

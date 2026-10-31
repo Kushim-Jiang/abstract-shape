@@ -830,7 +830,7 @@ class EntrySaveRequest(BaseModel):
     con: str = ""             # 抽构（IDS）
     ref_con: str = ""         # 参考抽构
     ob: list[str] = []        # 甲骨文编号（ob.jsonl 的 `num`）
-    bi: list[str] = []        # 金文字形（bi.jsonl 的 `glyph`，编号会重号）
+    bi: list[str] = []        # 金文编号（bi.jsonl 的 `num`）
     xz: list[str] = []        # 小篆序号（seal.ndjson 的 `num`）
     notes: str = ""           # 札记正文（Markdown）；文献引用写成 `[ref:C001.244-245+248]`
 
@@ -1032,6 +1032,12 @@ def glyph_seal(char: str = Query(""), q: str = Query(""), limit: int = Query(240
     """小篆候选：给一个字就列出它的小篆，`q` 用来按序号 / 字搜。
     返回项是 `{num, glyph, char}`。"""
     return glyphs.seal_candidates(char, q, limit)
+
+
+@app.get("/api/glyphs/index")
+def glyph_index():
+    """甲骨文 / 金文的 `编号 → 字形` 对照表（编号去过重，码位算不出来）。"""
+    return glyphs.glyph_index()
 
 
 @app.get("/api/glyphs/ob")

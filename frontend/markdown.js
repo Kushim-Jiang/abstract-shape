@@ -35,14 +35,23 @@ function mdInline(text, opts) {
     return "\u0000C" + (codes.length - 1) + "\u0000";
   });
 
-  // 字形：[ob:0001,0200] 甲骨文 / [bi:󰀀,󰀁] 金文 / [seal:01998] 小篆
-  // 甲骨文与小篆写编号（字体里码位 = 0xF0000 + 序号 - 1），金文直接写字形本身。
+  // 字形：[ob:0001,O200] 甲骨文 / [bi:00001A] 金文 / [seal:01998] 小篆
+  // 三张表的 num 都做过唯一化，直接当 key 用：小篆由序号算码位，
+  // 甲骨文 / 金文去重后算不出来，交给页面提供的对照表（window.GLYPH_LOOKUP）。
   // 旧的 `[[卜:…]]` / `[[金:…]]` / `[[篆:…]]` 写法继续认。
   const glyphSpan = function (kind, ids) {
+    const lookup = window.GLYPH_LOOKUP;
     const chars = String(ids).split(/[,\s，、]+/).filter(Boolean).map(function (id) {
-      if (kind === "bi") return id;            // 金文写的就是私用区字形
-      const n = parseInt(String(id).replace(/[^0-9]/g, ""), 10);
-      return n >= 1 ? String.fromCodePoint(0xF0000 + n - 1) : "";
+      if (lookup) {
+        const g = lookup(kind, id);
+        if (g) return g;
+      }
+      // 没有对照表时退回「码位 = 0xF0000 + 序号 - 1」（纯数字编号仍适用）
+      if (/[0-9]/.test(id) && !/[^0-9]/.test(id)) {
+        const n = parseInt(id, 10);
+        return n >= 1 ? String.fromCodePoint(0xF0000 + n - 1) : "";
+      }
+      return "";
     }).join("");
     if (!chars) return "";
     const cls = kind === "ob" ? "ob-glyph" : kind === "bi" ? "bi-glyph" : "xz-glyph";

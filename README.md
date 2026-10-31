@@ -77,8 +77,8 @@ Each chip is one entry of `annotations` (`con`), so existing records keep workin
  "annotations": [{"con": "匕(妣)", "ref": "", "comm": ""}, {"con": "匕(比)", "ref": "", "comm": ""}]}
 ```
 
-Both files reuse the same 编号 for several glyphs (拓片号), so a record is located
-by `num` + `glyph`; the endpoints are `POST /api/ob/annotate`,
+`num` is unique in both files (duplicates carry an `A`/`B`/… suffix), so a record
+is located by `num`; the endpoints are `POST /api/ob/annotate`,
 `/api/ob/annotate/delete` and the same pair for `/api/bi/…`.
 
 ### Shape input formatting
@@ -143,18 +143,26 @@ keyed by `(character, seq)`:
 | `con` | the abstract shape — an IDS expression, validated by `backend/shape.py` |
 | `ref_con` | a comparative shape; `=字` / `*字` are annotation conventions and skip IDS validation |
 | `ob` | oracle-bone forms attached to this note — `num`s from `backend/data/ob.jsonl`, e.g. `["0200"]` |
-| `bi` | bronze-inscription forms — the glyph itself from `backend/data/bi.jsonl` (the `num` there is a plate number shared by several glyphs), e.g. `["󰀀"]` |
+| `bi` | bronze-inscription forms — `num`s from `backend/data/bi.jsonl`, e.g. `["00001", "00001A"]` |
 | `xz` | small-seal forms attached to this note — `num`s from `backend/data/seal.ndjson`, e.g. `["01998"]` |
 | `notes` | the note body, free Markdown; citations are written inline (see below) |
 
 `ob` / `bi` / `xz` are picked in the editor (甲骨文 / 金文 / 小篆 rows, multi-select;
 candidates come from `/api/glyphs/ob`, `/api/glyphs/bi` and `/api/glyphs/seal`).
-All three glyph sets live in the private use area, codepoint `0xF0000 + number - 1`:
-`ob.jsonl` and `bi.jsonl` carry the character itself (fonts `ZihuiSongJGW.ttf` and
-`ZihuiSongJW.otf`), `seal.ndjson` carries `{num, glyph, char}` (11108 forms,
-`char` = the table's `zi_strict` when it has one, otherwise `zi`, font
-`frontend/sw-ccz-1963-rev1.ttf`). In Markdown they can also be written by hand as
-`[ob:0001,0200]`, `[bi:󰀀]` and `[seal:01998]`.
+
+**`num` is the key.** A 拓片号 in `ob.jsonl` / `bi.jsonl` is shared by several
+glyphs, so `backend/scripts/renumber_glyphs.py` gave every duplicate a letter
+suffix in file order (`0001`, `0001A`, `0001B`, …); `seal.ndjson` is 1–11108 and
+never collides. All three tables are now keyed by a unique `num`.
+
+The glyphs live in the private use area (fonts `ZihuiSongJGW.ttf`,
+`ZihuiSongJW.otf`, `frontend/sw-ccz-1963-rev1.ttf`). Only the seal codepoint can
+be computed — `0xF0000 + num - 1` — because its `num` is still the font index;
+the suffixed oracle-bone / bronze ids cannot, so the frontend fetches the whole
+`num → glyph` table once from `/api/glyphs/index`. `seal.ndjson` carries
+`{num, glyph, char}` (11108 forms, `char` = the table's `zi_strict` when it has
+one, otherwise `zi`). In Markdown the forms are written `[ob:0001,0200]`,
+`[bi:00001A]` and `[seal:01998]`.
 
 ### Citations
 
@@ -246,7 +254,7 @@ wins over code-point order. 扩展J (U+323B0–U+3347F, Unicode 17.0) follows �
 | `[[丂-1]]` | cross-reference to note 丂-1 (clickable) |
 | `[[文献: L005]]` | reference link rendered as `[L005]` |
 | `[ob:0001,0200]` | oracle-bone glyphs (numbers from `ob.jsonl`) |
-| `[bi:󰀀]` | bronze-inscription glyphs (the glyph itself, from `bi.jsonl`) |
+| `[bi:00001A]` | bronze-inscription glyphs (`num` from `bi.jsonl`) |
 | `[seal:01998]` | small-seal glyphs (`num` from `seal.ndjson`) |
 
 The older `[[卜:…]]` / `[[金:…]]` / `[[篆:…]]` spellings still render.

@@ -8,6 +8,7 @@
 *.html  text eol=lf
 *.md    text eol=lf
 *.json  text eol=lf
+*.jsonl text eol=lf
 *.ndjson text eol=lf
 input/*.txt  text eol=lf
 

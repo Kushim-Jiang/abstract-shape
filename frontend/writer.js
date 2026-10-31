@@ -25,9 +25,10 @@ const WR = {
   page: 1,            // 左侧列表当前页
   perPage: 100,       // 每页多少个字
   obSel: [],          // 当前条选中的甲骨文编号
-  biSel: [],          // 当前条选中的金文字形
+  biSel: [],          // 当前条选中的金文编号
   xzSel: [],          // 当前条选中的小篆序号（只有这些会保存）
   xzDefault: [],      // 按字形表映射默认显示的小篆序号（不保存）
+  glyphIndex: null,   // 甲骨文 / 金文的 编号→字形 对照表（只取一次）
 };
 
 function $(id) { return document.getElementById(id); }
@@ -356,6 +357,7 @@ function initColResize() {
 
 async function openDoc(char) {
   const d = await wrGet("/entries/" + encodeURIComponent(char));
+  await loadGlyphIndex();          // 甲骨文 / 金文的字形靠对照表画，先备好
   WR.doc = d;
   WR.doc.char = char;
   WR.current = char;
@@ -673,7 +675,7 @@ function renderEntryForm(e) {
 
 const GLYPH_KINDS = {
   ob: { cls: "ob-glyph", chips: "ent-ob-chips", picker: "甲骨文", hint: "搜索编号 / 释文中的字", api: "ob" },
-  bi: { cls: "bi-glyph", chips: "ent-bi-chips", picker: "金文", hint: "搜索拓片号 / 释文中的字", api: "bi" },
+  bi: { cls: "bi-glyph", chips: "ent-bi-chips", picker: "金文", hint: "搜索编号 / 释文中的字", api: "bi" },
   xz: { cls: "xz-glyph", chips: "ent-xz-chips", picker: "小篆", hint: "搜索序号 / 字", api: "seal" },
 };
 
@@ -682,10 +684,30 @@ function glyphChar(id) {
   return n >= 1 ? String.fromCodePoint(0xF0000 + n - 1) : "";
 }
 
-/** 各种字形的标识 → 要显示的字形字符（金文的标识本身就是字形） */
+/** 编号 → 字形字符：小篆能算，甲骨文 / 金文的编号去过重（`0001A`），查对照表 */
 function glyphOf(kind, id) {
-  return kind === "bi" ? String(id) : glyphChar(id);
+  if (kind === "xz") return glyphChar(id);
+  const hit = ((WR.glyphIndex || {})[kind] || {})[id];
+  return hit || (String(id).replace(/[0-9]/g, "") ? "" : glyphChar(id));
 }
+
+/** 甲骨文 / 金文编号对照表只取一次 */
+async function loadGlyphIndex() {
+  if (WR.glyphIndex) return WR.glyphIndex;
+  try {
+    WR.glyphIndex = await wrGet("/glyphs/index");
+  } catch (e) {
+    WR.glyphIndex = { ob: {}, bi: {} };
+  }
+  return WR.glyphIndex;
+}
+
+/** 给 markdown 渲染器用：`[ob:0001A]` 这类标记要换成字体里的字形 */
+function glyphLookup(kind, id) {
+  const k = kind === "seal" ? "xz" : kind;
+  return glyphOf(k, id);
+}
+window.GLYPH_LOOKUP = glyphLookup;
 
 function glyphSel(kind) {
   if (kind === "ob") return WR.obSel;
@@ -728,7 +750,7 @@ function renderGlyphChips(kind) {
       '" data-id="' + MD.esc(id) + '" title="' +
       (isDefault ? "按字表映射默认选中，未保存" : "点击取消选择") + '">' +
       '<span class="g ' + glyphClass(kind) + '">' + MD.esc(glyphOf(kind, id)) + "</span>" +
-      (kind === "bi" ? "" : '<span class="n">' + MD.esc(id) + "</span>") +
+      '<span class="n">' + MD.esc(id) + "</span>" +
       (isDefault ? '<span class="d">默认</span>' : "") + "</span>";
   };
   box.innerHTML = sel.map(function (id) { return chip(id, false); }).join("") +
@@ -777,8 +799,7 @@ function openGlyphPicker(kind) {
   const qEl = ov.querySelector("#gp-q");
 
   function cellHtml(it) {
-    // 甲骨文 / 小篆按编号选；金文的编号会重号，按字形本身选
-    const id = kind === "bi" ? it.glyph : it.num;
+    const id = it.num;
     const sub = isSeal ? (it.char || "") : (it.con || []).join("、");
     return '<button class="gp-cell' + (sel.has(id) ? " on" : "") + '" data-id="' +
       MD.esc(id) + '" title="' + MD.esc(sub) + '">' +
@@ -1338,7 +1359,7 @@ function renderMarkdown(d) {
       lines.push("- 甲骨文：" + e.ob.map(function (n) { return "[ob:" + n + "]"; }).join(""));
     }
     if (e.bi && e.bi.length) {
-      lines.push("- 金文：" + e.bi.map(function (g) { return "[bi:" + g + "]"; }).join(""));
+      lines.push("- 金文：" + e.bi.map(function (n) { return "[bi:" + n + "]"; }).join(""));
     }
     if (e.xz && e.xz.length) {
       lines.push("- 小篆：" + e.xz.map(function (s) { return "[seal:" + s + "]"; }).join(""));

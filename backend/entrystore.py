@@ -9,8 +9,7 @@
   * `con`      抽构（IDS 表达式，`backend/shape.py` 校验，可空）
   * `ref_con`  参考抽构（同上，通常是 `=字` / `*字` 这种非 IDS 写法，不做校验）
   * `ob`       甲骨文：`backend/data/ob.jsonl` 里的编号，如 `["0001", "0200"]`
-  * `bi`       金文：`backend/data/bi.jsonl` 里的字形本身（私用区字符序列唯一），
-                 因为金文的编号是拓片号、一个号下有好几个字形
+  * `bi`       金文：`backend/data/bi.jsonl` 里的编号，如 `["00001", "00001A"]`
   * `xz`       小篆：`backend/data/seal.ndjson` 里的序号，如 `["01998"]`
   * `notes`    札记正文（自由 Markdown），**文献引用直接写在正文里**：
                  `[ref:文献编号.页码]`，如 `[ref:C001.244-245+248]`
