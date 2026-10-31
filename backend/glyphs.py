@@ -3,9 +3,11 @@
 
 两种字形都是「表外字」：字体文件把每个字形放在私用区，码位 = `0xF0000 + 序号 - 1`。
 
-  * **小篆**：`backend/data/tab_unicode.tsv` 给出 `sid`（如 `S01996`），
-    字形在 `frontend/sw-ccz-1963-rev1.ttf` 里，码位 `0xF0000 + sid 数字 - 1`
+  * **小篆**：`backend/data/tab_unicode.tsv` 给出 `unicode_cid`（如 `C-01998`），
+    字形在 `frontend/sw-ccz-1963-rev1.ttf` 里，码位 `0xF0000 + cid 数字 - 1`
     （11108 个形）。查某个字的小篆，按表里的 `zi_strict` → `zi` 两列找。
+    注意：表里的 `sid`（`S01996`）是另一套编号，跟字体里的顺序对不上，
+    只有 `unicode_cid` 才是字体的字形序号。
   * **甲骨文**：`backend/data/ob.jsonl`，每条就是 `{num, glyph, annotations}`，
     `glyph` 本身就是私用区字符（和 `ZihuiSongJGW.ttf` 对应）；按标注里的
     `con`（如 `匕(妣)`）找到跟某个今字对应的卜辞字形。
@@ -51,7 +53,6 @@ def _sid_number(sid: str) -> int:
     m = re.search(r"(\d+)", sid or "")
     return int(m.group(1)) if m else 0
 
-
 def codepoint(number: int) -> int:
     """序号 → 私用区码位（1 起）。"""
     return PUA_BASE + max(0, number - 1)
@@ -66,17 +67,19 @@ def _load_seal() -> None:
     if mtime >= 0:
         with open(SEAL_TSV, "r", encoding="utf-8", newline="") as f:
             for row in csv.DictReader(f, delimiter="\t"):
-                sid = (row.get("sid") or "").strip()
-                num = _sid_number(sid)
+                cid = (row.get("unicode_cid") or "").strip()
+                num = _sid_number(cid)
                 if not num:
+                    # 没有 unicode_cid 的行在这套字体里没有字形
                     continue
                 item = {
-                    "sid": sid,
+                    "cid": cid,
                     "num": num,
                     "id": (row.get("id") or "").strip(),
                     "zi": (row.get("zi") or "").strip(),
                     "zi_strict": (row.get("zi_strict") or "").strip(),
                     "type": (row.get("type") or "").strip(),
+                    "unicode": (row.get("unicode") or "").strip(),
                     "cp": codepoint(num),
                 }
                 rows.append(item)
@@ -141,9 +144,9 @@ def seal_candidates(char: str = "", q: str = "", limit: int = 240) -> dict:
 
     def push(items):
         for it in items:
-            if it["sid"] in seen:
+            if it["cid"] in seen:
                 continue
-            seen.add(it["sid"])
+            seen.add(it["cid"])
             out.append(it)
 
     if char:
@@ -152,8 +155,8 @@ def seal_candidates(char: str = "", q: str = "", limit: int = 240) -> dict:
     if q:
         low = q.lower()
         push([i for i in _SEAL["all"]
-              if low in i["sid"].lower() or low in i["zi"] or low in i["zi_strict"]
-              or low in i["id"]])
+              if low in i["cid"].lower() or low in i["zi"] or low in i["zi_strict"]
+              or low in i["id"] or low in i["unicode"]])
     total = len(out)
     return {"results": out[:limit], "total": total}
 
@@ -191,11 +194,11 @@ def known_ob(nums) -> list[str]:
     return [str(n) for n in (nums or []) if str(n) in valid]
 
 
-def known_seal(sids) -> list[str]:
-    """过滤出确实存在的小篆 sid。"""
+def known_seal(cids) -> list[str]:
+    """过滤出确实存在的小篆 cid。"""
     _load_seal()
-    valid = {i["sid"] for i in _SEAL["all"]}
-    return [str(s) for s in (sids or []) if str(s) in valid]
+    valid = {i["cid"] for i in _SEAL["all"]}
+    return [str(s) for s in (cids or []) if str(s) in valid]
 
 
 def stats() -> dict:

@@ -25,8 +25,8 @@ const WR = {
   page: 1,            // 左侧列表当前页
   perPage: 100,       // 每页多少个字
   obSel: [],          // 当前条选中的甲骨文编号
-  xzSel: [],          // 当前条选中的小篆 sid（只有这些会保存）
-  xzDefault: [],      // 按字表映射默认显示的小篆 sid（不保存）
+  xzSel: [],          // 当前条选中的小篆 cid（只有这些会保存）
+  xzDefault: [],      // 按字表映射默认显示的小篆 cid（不保存）
 };
 
 function $(id) { return document.getElementById(id); }
@@ -635,7 +635,7 @@ function renderEntryForm(e) {
 //
 // 两种字体都把字形放在私用区，码位 = 0xF0000 + 序号 - 1：
 //   甲骨文 → ob.jsonl 的 num（如 0001），字体 ZihuiSongJGW
-//   小篆   → tab_unicode.tsv 的 sid（如 S01996），字体 sw-ccz-1963-rev1
+//   小篆   → tab_unicode.tsv 的 unicode_cid（如 C-01998），字体 sw-ccz-1963-rev1
 // 候选项由后端按字查好，这里只负责多选。
 
 function glyphChar(id) {
@@ -654,7 +654,7 @@ async function loadSealDefaults(char) {
   try {
     const d = await wrGet("/glyphs/seal?char=" + encodeURIComponent(char) + "&limit=8");
     if (WR.current !== char || WR.xzSel.length) return;
-    WR.xzDefault = (d.results || []).map(function (r) { return r.sid; });
+    WR.xzDefault = (d.results || []).map(function (r) { return r.cid; });
     renderGlyphChips("xz");
   } catch (e) { /* 查不到就没有默认 */ }
 }
@@ -709,7 +709,7 @@ function openGlyphPicker(kind) {
     '<div class="gp-head">' +
     '<span class="gp-title">' + (isOB ? "选择甲骨文" : "选择小篆") + "</span>" +
     '<input id="gp-q" type="text" placeholder="' +
-    (isOB ? "搜索编号 / 释文中的字" : "搜索 sid / 字") + '">' +
+    (isOB ? "搜索编号 / 释文中的字" : "搜索 cid / 字") + '">' +
     '<span class="hint" id="gp-count"></span>' +
     '<button class="btn-primary btn-sm" id="gp-done">完成</button>' +
     '<button class="btn-sm" id="gp-cancel">取消</button>' +
@@ -723,13 +723,13 @@ function openGlyphPicker(kind) {
   const qEl = ov.querySelector("#gp-q");
 
   function cellHtml(it) {
-    const id = isOB ? it.num : it.sid;
-    const label = isOB ? it.num : it.sid.replace(/^S/, "");
+    const id = isOB ? it.num : it.cid;
+    const label = isOB ? it.num : it.cid.replace(/^C-/, "");
     const sub = isOB ? (it.con || []).join("、") : (it.zi_strict || it.zi || "");
     return '<button class="gp-cell' + (sel.has(id) ? " on" : "") + '" data-id="' +
       MD.esc(id) + '" title="' + MD.esc(sub) + '">' +
       '<span class="gp-g ' + glyphClass(kind) + '">' +
-      (isOB ? it.glyph : glyphChar(it.sid)) + "</span>" +
+      (isOB ? it.glyph : glyphChar(it.cid)) + "</span>" +
       '<span class="gp-n">' + MD.esc(label) + "</span>" +
       (sub ? '<span class="gp-z">' + MD.esc(sub.slice(0, 6)) + "</span>" : "") +
       "</button>";
