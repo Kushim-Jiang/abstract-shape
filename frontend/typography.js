@@ -18,6 +18,7 @@
   const CENTER = {
     "、": 0.25, "，": 0.25, "：": 0.25, "；": 0.25, "”": 0.25, "’": 0.25, "．": 0.125,
     "（": 0.597, "）": 0.403,
+    "｛": 0.5, "｝": 0.5,          // 字形居中，两侧各向中间压 1/4
     "〈": 0.625, "〉": 0.375,
     "《": 0.622, "》": 0.378,
     "「": 0.645, "」": 0.355,
@@ -58,10 +59,12 @@
         const gapLeft = HAN.test(prev), gapRight = HAN.test(next);
         const run = chars.slice(i, j).join("");
         if (gapLeft || gapRight) {
-          html += '<span class="tw-lat"' +
-            (gapLeft ? ' style="margin-left:' + HAN_LATIN_GAP + '"' : "") +
-            (gapRight ? ' style="margin-right:' + HAN_LATIN_GAP + '"' : "") +
-            ">" + run + "</span>";
+          // 两边都留空时必须合成一个 style，写两个 style 属性只有第一个生效
+          const style = [];
+          if (gapLeft) style.push("margin-left:" + HAN_LATIN_GAP);
+          if (gapRight) style.push("margin-right:" + HAN_LATIN_GAP);
+          html += '<span class="tw-lat" style="' + style.join(";") + '">' +
+            run + "</span>";
           changed = true;
         } else {
           html += run;
