@@ -34,7 +34,7 @@ function mdInline(text, opts) {
     return "\u0000C" + (codes.length - 1) + "\u0000";
   });
 
-  // 字形：[[卜:0001,0200]] 甲骨文 / [[篆:S01996]] 小篆
+  // 字形：[[卜:0001,0200]] 甲骨文 / [[篆:01998]] 小篆
   // 两种字体都把字形放在私用区，码位 = 0xF0000 + 序号 - 1
   s = s.replace(/\[\[\s*([卜篆])\s*[:：]\s*([^\]]+)\]\]/g, function (_, kind, ids) {
     const chars = String(ids).split(/[,\s，、]+/).map(function (id) {

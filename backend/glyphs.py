@@ -3,11 +3,10 @@
 
 两种字形都是「表外字」：字体文件把每个字形放在私用区，码位 = `0xF0000 + 序号 - 1`。
 
-  * **小篆**：`backend/data/tab_unicode.tsv` 给出 `unicode_cid`（如 `C-01998`），
-    字形在 `frontend/sw-ccz-1963-rev1.ttf` 里，码位 `0xF0000 + cid 数字 - 1`
-    （11108 个形）。查某个字的小篆，按表里的 `zi_strict` → `zi` 两列找。
-    注意：表里的 `sid`（`S01996`）是另一套编号，跟字体里的顺序对不上，
-    只有 `unicode_cid` 才是字体的字形序号。
+  * **小篆**：`backend/data/seal.ndjson`，每条就是 `{num, glyph, char}`：
+    `num` 是字体里的字形序号（`00001`–`11108`），`glyph` 是私用区字符
+    （和 `frontend/sw-ccz-1963-rev1.ttf` 对应），`char` 是它对应的今字
+    （原表的 `zi_strict`，没有就用 `zi`）。
   * **甲骨文**：`backend/data/ob.jsonl`，每条就是 `{num, glyph, annotations}`，
     `glyph` 本身就是私用区字符（和 `ZihuiSongJGW.ttf` 对应）；按标注里的
     `con`（如 `匕(妣)`）找到跟某个今字对应的卜辞字形。
@@ -17,7 +16,6 @@
 
 from __future__ import annotations
 
-import csv
 import json
 import re
 from pathlib import Path
@@ -25,7 +23,7 @@ from pathlib import Path
 DATA_DIR = Path(__file__).resolve().parent / "data"
 REPO = DATA_DIR.parent.parent
 
-SEAL_TSV = DATA_DIR / "tab_unicode.tsv"
+SEAL_FILE = DATA_DIR / "seal.ndjson"
 OB_FILE = DATA_DIR / "ob.jsonl"
 
 #: 字形码位起点（两种字体都用这一区段）
@@ -49,43 +47,32 @@ def _mtime(path: Path) -> float:
         return -1.0
 
 
-def _sid_number(sid: str) -> int:
-    m = re.search(r"(\d+)", sid or "")
-    return int(m.group(1)) if m else 0
-
 def codepoint(number: int) -> int:
     """序号 → 私用区码位（1 起）。"""
     return PUA_BASE + max(0, number - 1)
 
 
 def _load_seal() -> None:
-    mtime = _mtime(SEAL_TSV)
+    mtime = _mtime(SEAL_FILE)
     if _SEAL["mtime"] == mtime:
         return
     by_char: dict[str, list[dict]] = {}
     rows: list[dict] = []
     if mtime >= 0:
-        with open(SEAL_TSV, "r", encoding="utf-8", newline="") as f:
-            for row in csv.DictReader(f, delimiter="\t"):
-                cid = (row.get("unicode_cid") or "").strip()
-                num = _sid_number(cid)
-                if not num:
-                    # 没有 unicode_cid 的行在这套字体里没有字形
+        with open(SEAL_FILE, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
                     continue
-                item = {
-                    "cid": cid,
-                    "num": num,
-                    "id": (row.get("id") or "").strip(),
-                    "zi": (row.get("zi") or "").strip(),
-                    "zi_strict": (row.get("zi_strict") or "").strip(),
-                    "type": (row.get("type") or "").strip(),
-                    "unicode": (row.get("unicode") or "").strip(),
-                    "cp": codepoint(num),
-                }
+                rec = json.loads(line)
+                num = str(rec.get("num") or "").strip()
+                glyph = rec.get("glyph") or ""
+                if not num or not glyph:
+                    continue
+                item = {"num": num, "glyph": glyph, "char": rec.get("char") or ""}
                 rows.append(item)
-                for key in {item["zi"], item["zi_strict"]}:
-                    if key:
-                        by_char.setdefault(key, []).append(item)
+                if item["char"]:
+                    by_char.setdefault(item["char"], []).append(item)
     _SEAL.update(mtime=mtime, by_char=by_char, all=rows)
 
 
@@ -135,7 +122,7 @@ def _load_ob() -> None:
 
 
 def seal_candidates(char: str = "", q: str = "", limit: int = 240) -> dict:
-    """小篆候选：`zi_strict` 命中的排前面，其次 `zi` 命中，最后是搜索词命中。"""
+    """小篆候选：先给 `char` 对应的字形，再按搜索词（编号 / 今字）在整表里搜。"""
     _load_seal()
     char = (char or "").strip()
     q = (q or "").strip()
@@ -144,24 +131,18 @@ def seal_candidates(char: str = "", q: str = "", limit: int = 240) -> dict:
 
     def push(items):
         for it in items:
-            if it["cid"] in seen:
+            if it["num"] in seen:
                 continue
-            seen.add(it["cid"])
+            seen.add(it["num"])
             out.append(it)
 
     if char:
-        push([i for i in _SEAL["by_char"].get(char, []) if i["zi_strict"] == char])
         push(_SEAL["by_char"].get(char, []))
     if q:
-        low = q.lower().strip()
-        # 允许直接贴 `U+3D1B6` / `3d1b6`：这是表里 `unicode` 那一列，
-        # 再经 `unicode_cid` 映射到字体里的字形
-        if low.startswith("u+"):
-            low = low[2:].strip()
-        low = low.lstrip("0") or low
+        low = q.strip().lower()
+        low_num = low.lstrip("0") or low
         push([i for i in _SEAL["all"]
-              if low in i["cid"].lower() or low in i["zi"] or low in i["zi_strict"]
-              or low in i["id"] or low in i["unicode"].lower()])
+              if low_num == i["num"].lstrip("0") or (low and low in i["char"])])
     total = len(out)
     return {"results": out[:limit], "total": total}
 
@@ -199,11 +180,11 @@ def known_ob(nums) -> list[str]:
     return [str(n) for n in (nums or []) if str(n) in valid]
 
 
-def known_seal(cids) -> list[str]:
-    """过滤出确实存在的小篆 cid。"""
+def known_seal(nums) -> list[str]:
+    """过滤出字体里确实存在的小篆序号。"""
     _load_seal()
-    valid = {i["cid"] for i in _SEAL["all"]}
-    return [str(s) for s in (cids or []) if str(s) in valid]
+    valid = {i["num"] for i in _SEAL["all"]}
+    return [str(s) for s in (nums or []) if str(s) in valid]
 
 
 def stats() -> dict:

@@ -9,7 +9,7 @@
   * `con`      抽构（IDS 表达式，`backend/shape.py` 校验，可空）
   * `ref_con`  参考抽构（同上，通常是 `=字` / `*字` 这种非 IDS 写法，不做校验）
   * `ob`       甲骨文：`backend/data/ob.jsonl` 里的编号，如 `["0001", "0200"]`
-  * `xz`       小篆：`backend/data/tab_unicode.tsv` 里的 `sid`，如 `["S01996"]`
+  * `xz`       小篆：`backend/data/seal.ndjson` 里的序号，如 `["01998"]`
   * `notes`    札记正文（自由 Markdown），**文献引用直接写在正文里**：
                  `[ref:文献编号.页码]`，如 `[ref:C001.244-245+248]`
                  表示 C001 的 244—245 页和 248 页，`[ref:C001]` 则只指文献。

@@ -143,15 +143,16 @@ keyed by `(character, seq)`:
 | `con` | the abstract shape — an IDS expression, validated by `backend/shape.py` |
 | `ref_con` | a comparative shape; `=字` / `*字` are annotation conventions and skip IDS validation |
 | `ob` | oracle-bone forms attached to this note — `num`s from `backend/data/ob.jsonl`, e.g. `["0200"]` |
-| `xz` | small-seal forms attached to this note — `unicode_cid`s from `backend/data/tab_unicode.tsv`, e.g. `["C-01998"]` |
+| `xz` | small-seal forms attached to this note — `num`s from `backend/data/seal.ndjson`, e.g. `["01998"]` |
 | `notes` | the note body, free Markdown; citations are written inline (see below) |
 
 `ob` / `xz` are picked in the editor (甲骨文 / 小篆 rows, multi-select; candidates come
 from `/api/glyphs/ob` and `/api/glyphs/seal`). Both glyph sets live in the private
 use area, codepoint `0xF0000 + number - 1`: `ob.jsonl` carries the character itself,
-while the seal table maps `unicode_cid` → `zi_strict` / `zi`, and the font is
-`frontend/sw-ccz-1963-rev1.ttf` (11108 forms). In Markdown they can also be written
-by hand as `[[卜:0001,0200]]` and `[[篆:C-01998]]`.
+`seal.ndjson` carries `{num, glyph, char}` (11108 forms, `char` = the table's
+`zi_strict` when it has one, otherwise `zi`), and the font is
+`frontend/sw-ccz-1963-rev1.ttf`. In Markdown they can also be written by hand as
+`[[卜:0001,0200]]` and `[[篆:01998]]`.
 
 ### Citations
 
@@ -243,7 +244,7 @@ wins over code-point order. 扩展J (U+323B0–U+3347F, Unicode 17.0) follows �
 | `[[丂-1]]` | cross-reference to note 丂-1 (clickable) |
 | `[[文献: L005]]` | reference link rendered as `[L005]` |
 | `[[卜:0001,0200]]` | oracle-bone glyphs (numbers from `ob.jsonl`) |
-| `[[篆:C-01998]]` | small-seal glyphs (`unicode_cid` from `tab_unicode.tsv`) |
+| `[[篆:01998]]` | small-seal glyphs (`num` from `seal.ndjson`) |
 
 ### Migrating old data
 
