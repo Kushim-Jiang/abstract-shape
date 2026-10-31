@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>抽构标注管理</title>
-<link rel="stylesheet" href="style.css?v=36">
+<link rel="stylesheet" href="style.css?v=37">
 </head>
 <body>
 <div id="app">
@@ -65,6 +65,10 @@
             <button id="doc-prev-btn" class="btn-nav">◀</button>
             <span id="doc-nav-label" class="doc-nav-label"></span>
             <button id="doc-next-btn" class="btn-nav">▶</button>
+            <div class="we-switch">
+              <button class="we-switch-btn active" id="sw-edit">编辑</button>
+              <button class="we-switch-btn" id="sw-preview">预览</button>
+            </div>
             <span id="doc-head-char" class="doc-head-char"></span>
             <span id="doc-head-block" class="doc-head-block"></span>
             <span class="we-spacer"></span>
@@ -76,10 +80,6 @@
           <div class="we-panes" id="doc-panes">
             <!-- ── 左：一个框，编辑 / 预览 切换 ── -->
             <div class="we-col-left">
-              <div class="we-switch">
-                <button class="we-switch-btn active" id="sw-edit">编辑</button>
-                <button class="we-switch-btn" id="sw-preview">预览</button>
-              </div>
               <div class="we-stage" id="we-stage">
                 <div class="we-pane we-pane-edit active" id="pane-edit">
                   <div id="note-forms" class="note-forms"></div>

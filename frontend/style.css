@@ -700,11 +700,11 @@ body.col-resizing * { cursor: col-resize !important; }
 }
 .we-switch {
   display: flex; align-items: center; gap: 4px; flex-shrink: 0;
-  padding: 7px 12px; border-bottom: 1px solid var(--border);
-  background: var(--bg2);
+  margin-left: 4px; padding: 2px;
+  border: 1px solid var(--border); border-radius: 8px; background: var(--bg3);
 }
 .we-switch-btn {
-  font-size: 12.5px; padding: 4px 16px; border-radius: 6px;
+  font-size: 12.5px; padding: 3px 14px; border-radius: 6px;
   border: 1px solid transparent; background: transparent; color: var(--text2);
 }
 .we-switch-btn:hover { background: var(--bg3); color: var(--text); }
