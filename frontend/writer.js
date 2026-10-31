@@ -25,7 +25,8 @@ const WR = {
   page: 1,            // 左侧列表当前页
   perPage: 100,       // 每页多少个字
   obSel: [],          // 当前条选中的甲骨文编号
-  xzSel: [],          // 当前条选中的小篆 sid
+  xzSel: [],          // 当前条选中的小篆 sid（只有这些会保存）
+  xzDefault: [],      // 按字表映射默认显示的小篆 sid（不保存）
 };
 
 function $(id) { return document.getElementById(id); }
@@ -576,6 +577,7 @@ function renderEditor() {
   bindEditor();
   renderGlyphChips("ob");
   renderGlyphChips("xz");
+  if (!WR.xzSel.length) loadSealDefaults(d.char);
   if (!isNew) renderShapeStatus(WR.shape);
   refreshPreview();
   applyVerifyMarks();
@@ -585,22 +587,23 @@ function renderEntryForm(e) {
   return (
     '<div class="ent-body">' +
 
-    '<div class="nf-row">' +
-    '<label class="nf-label">抽构' +
-    '<span class="hint">输入时自动补 []、全角（）转 ()；可用 [字]= 写分解</span>' +
-    "</label>" +
+    '<div class="nf-row nf-pair">' +
+    '<div class="nf-cell">' +
+    '<label class="nf-label">抽构</label>' +
     '<input id="ent-con" class="nf-input nf-con ent-con" type="text" spellcheck="false" ' +
     'value="' + MD.esc(e.con || "") + '">' +
-    '<div id="ent-shape-status" class="shape-status"></div>' +
     "</div>" +
-
-    '<div class="nf-row">' +
+    '<div class="nf-cell">' +
     '<label class="nf-label">参考抽构</label>' +
     '<input id="ent-ref-con" class="nf-input ent-ref-con" type="text" spellcheck="false" ' +
     'value="' + MD.esc(e.ref_con || "") + '">' +
     "</div>" +
+    "</div>" +
 
-    '<div class="nf-row">' +
+    '<div id="ent-shape-status" class="shape-status"></div>' +
+
+    '<div class="nf-row nf-pair">' +
+    '<div class="nf-cell">' +
     '<label class="nf-label">甲骨文' +
     '<span class="hint">可多选</span></label>' +
     '<div class="glyph-pick">' +
@@ -608,13 +611,13 @@ function renderEntryForm(e) {
     '<button class="btn-sm" id="ent-ob-add" title="选择甲骨文字形">＋ 选择</button>' +
     "</div>" +
     "</div>" +
-
-    '<div class="nf-row">' +
+    '<div class="nf-cell">' +
     '<label class="nf-label">小篆' +
     '<span class="hint">可多选</span></label>' +
     '<div class="glyph-pick">' +
     '<div class="glyph-chips" id="ent-xz-chips"></div>' +
     '<button class="btn-sm" id="ent-xz-add" title="选择小篆字形">＋ 选择</button>' +
+    "</div>" +
     "</div>" +
     "</div>" +
 
@@ -644,21 +647,39 @@ function glyphSel(kind) { return kind === "ob" ? WR.obSel : WR.xzSel; }
 
 function glyphClass(kind) { return kind === "ob" ? "ob-glyph" : "xz-glyph"; }
 
+/** 小篆的「默认选中」：按 tab_unicode.tsv 的映射查出来，但不落盘 */
+async function loadSealDefaults(char) {
+  WR.xzDefault = [];
+  if (!char) return;
+  try {
+    const d = await wrGet("/glyphs/seal?char=" + encodeURIComponent(char) + "&limit=8");
+    if (WR.current !== char || WR.xzSel.length) return;
+    WR.xzDefault = (d.results || []).map(function (r) { return r.sid; });
+    renderGlyphChips("xz");
+  } catch (e) { /* 查不到就没有默认 */ }
+}
+
 /** 把当前条已选的字形画成一排小方块，点一下取消选择 */
 function renderGlyphChips(kind) {
   const box = $(kind === "ob" ? "ent-ob-chips" : "ent-xz-chips");
   if (!box) return;
   const sel = glyphSel(kind);
-  if (!sel.length) {
+  const defs = kind === "xz" && !sel.length ? (WR.xzDefault || []) : [];
+  if (!sel.length && !defs.length) {
     box.innerHTML = '<span class="glyph-empty">未选</span>';
     return;
   }
-  box.innerHTML = sel.map(function (id) {
-    return '<span class="glyph-chip" data-id="' + MD.esc(id) + '" title="点击取消选择">' +
+  const chip = function (id, isDefault) {
+    return '<span class="glyph-chip' + (isDefault ? " is-default" : "") +
+      '" data-id="' + MD.esc(id) + '" title="' +
+      (isDefault ? "按字表映射默认选中，未保存" : "点击取消选择") + '">' +
       '<span class="g ' + glyphClass(kind) + '">' + glyphChar(id) + "</span>" +
-      '<span class="n">' + MD.esc(id) + "</span></span>";
-  }).join("");
-  box.querySelectorAll(".glyph-chip").forEach(function (el) {
+      '<span class="n">' + MD.esc(id) + "</span>" +
+      (isDefault ? '<span class="d">默认</span>' : "") + "</span>";
+  };
+  box.innerHTML = sel.map(function (id) { return chip(id, false); }).join("") +
+    defs.map(function (id) { return chip(id, true); }).join("");
+  box.querySelectorAll(".glyph-chip:not(.is-default)").forEach(function (el) {
     el.addEventListener("click", function () {
       const id = el.getAttribute("data-id");
       const list = glyphSel(kind);
@@ -678,7 +699,9 @@ function openGlyphPicker(kind) {
   if (old) old.remove();
 
   const isOB = kind === "ob";
-  const sel = new Set(glyphSel(kind));
+  const picked = glyphSel(kind);
+  // 小篆还没选过时，先把映射出来的默认项勾上
+  const sel = new Set(picked.length ? picked : (kind === "xz" ? (WR.xzDefault || []) : []));
   const ov = document.createElement("div");
   ov.className = "gp-overlay";
   ov.innerHTML =

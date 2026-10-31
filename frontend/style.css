@@ -389,16 +389,24 @@ main > .view.active:not(#view-write) { flex: 1; min-height: 0; overflow-y: auto;
 .md-glyph { font-size: 1.5em; line-height: 1; vertical-align: -.1em; margin: 0 .06em; }
 
 /* 条里选字形：已选的小方块 + 选择按钮 */
-.glyph-pick { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.glyph-pick { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; min-height: 42px; }
 .glyph-chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .glyph-chip {
-  display: inline-flex; align-items: center; gap: 5px; padding: 1px 8px 1px 3px;
-  border: 1px solid var(--border); border-radius: 8px; background: var(--bg3);
+  display: inline-flex; align-items: center; gap: 6px; padding: 2px 9px 2px 4px;
+  border: 1px solid var(--border); border-radius: 9px; background: var(--bg3);
   cursor: pointer; transition: .15s;
 }
 .glyph-chip:hover { border-color: var(--danger); }
-.glyph-chip .g { font-size: 26px; line-height: 1.1; }
+.glyph-chip .g { font-size: 38px; line-height: 1.05; }
 .glyph-chip .n { font-family: "Cascadia Mono", monospace; font-size: 10px; color: var(--text2); }
+.glyph-chip.is-default {
+  border-style: dashed; cursor: default; background: transparent;
+}
+.glyph-chip.is-default:hover { border-color: var(--border); }
+.glyph-chip .d {
+  font-size: 10px; padding: 0 4px; border-radius: 4px;
+  background: var(--bg4); color: var(--text2);
+}
 .glyph-empty { font-size: 12px; color: var(--text2); }
 
 /* 选字形面板 */
@@ -426,7 +434,7 @@ main > .view.active:not(#view-write) { flex: 1; min-height: 0; overflow-y: auto;
 }
 .gp-cell:hover { border-color: var(--accent); }
 .gp-cell.on { border-color: var(--accent); background: var(--bg4); box-shadow: inset 0 0 0 1px var(--accent); }
-.gp-cell .gp-g { font-size: 40px; line-height: 1.1; }
+.gp-cell .gp-g { font-size: 50px; line-height: 1.1; }
 .gp-cell .gp-n { font-family: "Cascadia Mono", monospace; font-size: 10px; color: var(--text2); }
 .gp-cell .gp-z { font-size: 11px; color: var(--text2); }
 
@@ -914,6 +922,12 @@ body.col-resizing * { cursor: col-resize !important; }
 .note-form { display: flex; flex-direction: column; gap: 12px; }
 
 .nf-row { display: flex; flex-direction: column; gap: 5px; }
+/* 两个字段并排：抽构 / 参考抽构、甲骨文 / 小篆 */
+.nf-row.nf-pair { flex-direction: row; gap: 14px; align-items: flex-start; }
+.nf-pair > .nf-cell {
+  flex: 1 1 0; min-width: 0;
+  display: flex; flex-direction: column; gap: 5px;
+}
 .nf-label {
   font-size: 12px; font-weight: 600; color: var(--text2);
   letter-spacing: .04em;
