@@ -1,19 +1,22 @@
 #!/usr/bin/env python3
 """
-剪掉视频里「画面静止 ≥ N 秒」的片段（每段静止只留 M 秒），
-再按命令行给出的顺序拼成一条，写回原路径。
+Cut out the stretches where the picture is frozen for >= N seconds (keeping the
+first M seconds of each freeze), then join everything in the order given on the
+command line and write it back to the original path.
 
-    python tools/trim_static.py A.mp4                 # 原地处理 A
-    python tools/trim_static.py A.mp4 B.mp4 C.mp4     # 依次剪，拼成一条，写回 A.mp4
-    python tools/trim_static.py A.mp4 -o out.mp4      # 指定输出
-    python tools/trim_static.py A.mp4 --dry-run       # 只报告检测到的静止区间
+    python tools/trim_static.py A.mp4                 # trim A in place
+    python tools/trim_static.py A.mp4 B.mp4 C.mp4     # trim each, join, write to A.mp4
+    python tools/trim_static.py A.mp4 -o out.mp4      # explicit output
+    python tools/trim_static.py A.mp4 --dry-run       # report the detected freezes only
 
-默认参数：静止判定 ≥3 秒（`--freeze`），每段静止保留 0.5 秒（`--keep`）。
-导出仍用源视频的码率 / 分辨率 / 帧率 / 音频参数重新编码（剪切点不在关键帧上，
-无法无损 copy），先写临时文件再原子替换，中途失败不会毁掉原文件。
+Defaults: a freeze counts once it lasts >= 3 s (`--freeze`), and 0.5 s of it is
+kept (`--keep`). The export re-encodes at the source bitrate / resolution / frame
+rate / audio settings (the cut points are not keyframes, so a lossless stream copy
+is impossible). Output goes to a temp file first and is then moved into place, so
+a failed run never destroys the original.
 
-检测用 ffmpeg 的 `freezedetect` 滤镜，结果按（文件, 参数）缓存到临时目录，
-重复运行不必再解一遍 5 小时的片子。
+Freezes are detected with ffmpeg's `freezedetect` filter; the result is cached per
+(file, parameters) in the temp dir, so a 5-hour recording is only decoded once.
 """
 
 from __future__ import annotations
@@ -30,14 +33,14 @@ import tempfile
 import time
 from pathlib import Path
 
-#: 检测到的静止区间：`[{path, mtime, freezes: [[start, end], ...]}]`
+#: cache format version for the detected freeze list
 _CACHE_VERSION = 2
 
 
 def find_tool(name: str) -> str:
     exe = shutil.which(name)
     if not exe:
-        sys.exit(f"找不到 {name}，请先安装 ffmpeg 并加入 PATH")
+        sys.exit(f"{name} not found; install ffmpeg and put it on PATH")
     return exe
 
 
@@ -56,7 +59,7 @@ def probe(path: Path) -> dict:
         capture_output=True, text=True, encoding="utf-8", errors="replace",
     )
     if out.returncode != 0:
-        sys.exit(f"ffprobe 失败：{path}\n{out.stderr}")
+        sys.exit(f"ffprobe failed: {path}\n{out.stderr}")
     data = json.loads(out.stdout or "{}")
     info = {"path": path, "duration": float(data.get("format", {}).get("duration") or 0),
             "bit_rate": int(data.get("format", {}).get("bit_rate") or 0),
@@ -143,7 +146,7 @@ def detect_freezes(info: dict, min_seconds: float, noise: float,
                 spans.append((start, end))
     proc.wait()
     if proc.returncode != 0:
-        sys.exit(f"ffmpeg 检测失败：{path}")
+        sys.exit(f"ffmpeg freeze detection failed: {path}")
     # 一直静止到结束、没等到 freeze_end 的那一段
     for start in starts:
         end = info["duration"]
@@ -244,7 +247,7 @@ def _run(argv: list[str], label: str, verbose: bool) -> None:
     proc.wait()
     if proc.returncode != 0:
         print("\n".join(tail))
-        sys.exit(f"ffmpeg 失败（{label}）")
+        sys.exit(f"ffmpeg failed ({label})")
 
 
 def _encode_chunk(info: dict, segs: list[tuple[float, float]], out_path: Path,
@@ -304,7 +307,7 @@ def render(inputs: list[tuple[dict, list[tuple[float, float]]]], out_path: Path,
     has_audio = all(info["audio"] for info, _ in inputs)
     ref = inputs[0][0]
     n_seg = sum(len(segs) for _, segs in inputs)
-    print(f"  编码：{n_seg} 段 → {out_path}")
+    print(f"  encoding {n_seg} segments -> {out_path}")
     started = time.time()
 
     work = Path(tempfile.mkdtemp(prefix="trim_static."))
@@ -317,8 +320,8 @@ def render(inputs: list[tuple[dict, list[tuple[float, float]]]], out_path: Path,
                 _encode_chunk(info, piece, out, has_audio, verbose)
                 parts.append(out)
                 kept = sum(e - s for s, e in piece)
-                print(f"  第 {len(parts)} 块：{len(piece)} 段 / {kept:.0f}s"
-                      f"（总 {sum(p.stat().st_size for p in parts) / 1e6:.0f} MB）",
+                print(f"  chunk {len(parts)}: {len(piece)} segments / {kept:.0f}s"
+                      f" (total {sum(p.stat().st_size for p in parts) / 1e6:.0f} MB)",
                       flush=True)
 
         if len(parts) == 1:
@@ -333,7 +336,7 @@ def render(inputs: list[tuple[dict, list[tuple[float, float]]]], out_path: Path,
                 concat += ["-c", "copy"]
             else:
                 # 各段编码参数不一致时直接 copy 拼不了，只好再编一次
-                print("  ⚠ 各输入的分辨率 / 帧率等不一致，拼接时需要重新编码")
+                print("  warning: inputs differ in size / frame rate, concat needs a re-encode")
                 concat += _encoder_args(ref, has_audio)
             concat += ["-movflags", "+faststart", str(out_path)]
             _run(concat, "concat", verbose)
@@ -342,8 +345,8 @@ def render(inputs: list[tuple[dict, list[tuple[float, float]]]], out_path: Path,
 
     src = inputs[0][0]["duration"]
     total = sum(e - s for _, segs in inputs for s, e in segs)
-    print(f"  完成：{time.time() - started:.0f} 秒；"
-          f"保留 {total:.1f}s（原第一段 {src:.1f}s）")
+    print(f"  done in {time.time() - started:.0f}s; "
+          f"kept {total:.1f}s (first input was {src:.1f}s)")
 
 
 # ─── 主流程 ────────────────────────────────────────────────
@@ -356,23 +359,29 @@ def human(t: float) -> str:
 
 def main(argv: list[str] | None = None) -> None:
     ap = argparse.ArgumentParser(
-        description="剪掉静止画面（≥N 秒），按顺序拼接，写回原路径")
-    ap.add_argument("paths", nargs="+", help="视频路径，按顺序拼接")
-    ap.add_argument("-o", "--out", help="输出路径（默认写回第一个输入，原文件保留备份见 --backup）")
-    ap.add_argument("--freeze", type=float, default=3.0, help="静止多久算可剪（秒，默认 3）")
-    ap.add_argument("--keep", type=float, default=0.5, help="每段静止保留多久（秒，默认 0.5）")
+        description="cut frozen stretches (>= N seconds), join the inputs in order, "
+                    "write back to the original path")
+    ap.add_argument("paths", nargs="+", help="video files, processed and joined in this order")
+    ap.add_argument("-o", "--out",
+                    help="output path (default: overwrite the first input; see --backup)")
+    ap.add_argument("--freeze", type=float, default=3.0,
+                    help="a freeze must last this long to be cut (seconds, default 3)")
+    ap.add_argument("--keep", type=float, default=0.5,
+                    help="how much of each freeze to keep (seconds, default 0.5)")
     ap.add_argument("--noise", type=float, default=0.003,
-                    help="静止判定的噪声容差（默认 0.003，压缩噪声大可调到 0.005）")
-    ap.add_argument("--backup", action="store_true", help="覆盖原文件前留一份 .bak")
-    ap.add_argument("--dry-run", action="store_true", help="只报告检测结果，不导出")
-    ap.add_argument("--no-cache", action="store_true", help="重新检测（忽略缓存）")
-    ap.add_argument("--verbose", action="store_true", help="输出 ffmpeg 进度")
+                    help="noise tolerance of the freeze test (default 0.003; "
+                         "try 0.005 on noisy sources)")
+    ap.add_argument("--backup", action="store_true", help="keep a .bak copy before overwriting")
+    ap.add_argument("--dry-run", action="store_true", help="only report what would be cut")
+    ap.add_argument("--no-cache", action="store_true", help="ignore the detection cache")
+    ap.add_argument("--verbose", action="store_true",
+                    help="print the full ffmpeg command and its progress")
     args = ap.parse_args(argv)
 
     paths = [Path(p).expanduser() for p in args.paths]
     for p in paths:
         if not p.is_file():
-            sys.exit(f"找不到文件：{p}")
+            sys.exit(f"no such file: {p}")
 
     out_path = Path(args.out).expanduser() if args.out else paths[0]
 
@@ -382,22 +391,22 @@ def main(argv: list[str] | None = None) -> None:
     for p in paths:
         info = probe(p)
         if not info["video"]:
-            sys.exit(f"没有视频流：{p}")
+            sys.exit(f"no video stream: {p}")
         freezes = detect_freezes(info, args.freeze, args.noise, use_cache=not args.no_cache)
         segs = keep_segments(info["duration"], freezes, args.keep)
         old = info["duration"]
         new = sum(e - s for s, e in segs)
         grand_old += old
         grand_new += new
-        print(f"{p.name}  {human(old)} → {human(new)}  "
-              f"（静止 {len(freezes)} 段，共 {human(old - new)}，切完 {len(segs)} 段）")
+        print(f"{p.name}  {human(old)} -> {human(new)}  "
+              f"({len(freezes)} freezes, {human(old - new)} cut, {len(segs)} segments left)")
         for s, e in freezes[:10]:
-            print(f"    静止 {human(s)} – {human(e)}  长 {e - s:.1f}s")
+            print(f"    frozen {human(s)} - {human(e)}  {e - s:.1f}s")
         if len(freezes) > 10:
-            print(f"    … 另有 {len(freezes) - 10} 段")
+            print(f"    ... and {len(freezes) - 10} more")
         jobs.append((info, segs))
 
-    print(f"合计 {human(grand_old)} → {human(grand_new)}")
+    print(f"total {human(grand_old)} -> {human(grand_new)}")
     if args.dry_run:
         return
 
@@ -411,13 +420,13 @@ def main(argv: list[str] | None = None) -> None:
             bak = out_path.with_name(out_path.stem + ".bak" + out_path.suffix)
             if not bak.exists():
                 out_path.replace(bak)
-                print(f"  原文件已备份为 {bak.name}")
+                print(f"  original backed up as {bak.name}")
         os.replace(tmp, out_path)
     finally:
         if tmp.exists():
             tmp.unlink()
     size = out_path.stat().st_size / 1024 / 1024
-    print(f"已写入 {out_path}  （{size:.1f} MB）")
+    print(f"written {out_path}  ({size:.1f} MB)")
 
 
 if __name__ == "__main__":
