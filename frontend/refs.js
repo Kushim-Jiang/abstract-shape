@@ -175,6 +175,14 @@ function renderRefForm(r) {
         '<input type="text" data-key="pages" value="' + MD.esc(r[key] || "") +
         '" placeholder="224-225+226-227"></div>';
     }
+    if (key === "date") {
+      // 只写月 / 月.日 时，年取自「年」字段：3 → 3月，3.12 → 3月12日
+      return '<div class="ref-field"><label>' + label +
+        ' <span class="bib">' + bib + "</span>" +
+        '<span class="hint">3 = 3月，3.12 = 3月12日</span></label>' +
+        '<input type="text" data-key="date" value="' + MD.esc(r[key] || "") +
+        '" placeholder="3.12"></div>';
+    }
     return '<div class="ref-field"><label>' + label +
       ' <span class="bib">' + bib + "</span></label>" +
       '<input type="text" data-key="' + key + '" value="' + MD.esc(r[key] || "") + '"></div>';

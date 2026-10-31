@@ -124,6 +124,64 @@ def format_pages(pages: str) -> str:
     return "、".join(p for p in parts if p)
 
 
+#: 日期里的「年 / 月 / 日」都当分隔符，和 `-` `/` `.` 空格等价
+_DATE_SEP_RE = re.compile(r"[年月日]")
+_DATE_GAP_RE = re.compile(r"[-./\s]+")
+
+
+def parse_date(value) -> tuple[str, str, str]:
+    """拆成 `(年, 月, 日)`。
+
+    第一段是 3–4 位数字才当年（`2007-5-1`），否则整串当「月[.日]」的简写
+    （`3` = 3 月，`3.12` = 3 月 12 日），年留给 `year` 字段。
+    认不出来的返回全空。
+    """
+    s = str(value or "").strip()
+    if not s:
+        return ("", "", "")
+    norm = _DATE_GAP_RE.sub("-", _DATE_SEP_RE.sub("-", s)).strip("-")
+    parts = norm.split("-")
+    if not parts or len(parts) > 3:
+        return ("", "", "")
+    if not all(re.fullmatch(r"\d{1,4}", p) for p in parts):
+        return ("", "", "")
+    nums = [str(int(p)) for p in parts]
+    if len(parts[0]) >= 3:
+        y, rest = nums[0], nums[1:]
+    else:
+        y, rest = "", nums
+    if len(rest) > 2:
+        return ("", "", "")
+    return (y, rest[0] if rest else "", rest[1] if len(rest) > 1 else "")
+
+
+def clean_date(value) -> str:
+    """统一成 `2007-05-01` / `2007-05` / `03-12` / `03`；认不出的原样保留。"""
+    y, mo, d = parse_date(value)
+    if not (y or mo or d):
+        return str(value or "").strip()
+    parts = [y] if y else []
+    if mo:
+        parts.append(mo.zfill(2))
+    if d:
+        parts.append(d.zfill(2))
+    return "-".join(parts)
+
+
+def format_date(value, year="") -> str:
+    """显示用：`2007-05-01` → `2007年5月1日`；简写 `3` / `3.12` 用 `year` 补年。"""
+    y, mo, d = parse_date(value)
+    y = y or str(year or "").strip()
+    if not (y or mo or d):
+        return ""
+    out = f"{y}年" if y else ""
+    if mo:
+        out += f"{mo}月"
+        if d:
+            out += f"{d}日"
+    return out
+
+
 def _normalize(rec: dict) -> dict:
     out: dict = {}
     for key, _name, kind, _bib in FIELDS:
@@ -139,6 +197,7 @@ def _normalize(rec: dict) -> dict:
         out["article_title"] = ""
     # 页码统一成 `224-225+226-227`（和札记里 [ref:C001.224-225+226] 的写法一致）
     out["pages"] = clean_pages(out["pages"])
+    out["date"] = clean_date(out["date"])
     out["_builtin"] = bool(rec.get("_builtin"))
     out["_citation"] = rec.get("citation", "")
     return out
@@ -332,8 +391,10 @@ def citation(rec: dict) -> str:
         bits.append(f"《{venue}》")
     if rec.get("publisher"):
         bits.append(rec["publisher"])
-    if rec.get("year"):
-        bits.append(f"{rec['year']}年")
+    # 有日期就用「年月日」（简写 3 / 3.12 用 `year` 补年），只有年就写「年」
+    date = format_date(rec.get("date"), rec.get("year"))
+    if date:
+        bits.append(date)
     if rec.get("pages"):
         bits.append(f"第{format_pages(rec['pages'])}页")
     return "，".join(bits)
