@@ -46,15 +46,17 @@ def _issue(level: str, code: str, field: str, message: str, seq: int) -> dict:
 
 
 def _parse_expr(expr: str):
-    """拆前缀 / 分解头后解析，返回 (prefix, head, body, node|None)。"""
-    prefix, head, body = shape.split_head(expr)
-    node = shape.try_parse(body) if body else None
-    return prefix, head, body, node
+    """拆前缀 / 分解头并逐段解析 `=` 连等，返回 (prefix, head, nodes)。"""
+    try:
+        return shape.parse_chain(expr)
+    except shape.ShapeSyntaxError:
+        return "", None, []
 
 
-def _def_key(head, node) -> str:
-    """一条抽构「定义」的键：`[與]=⿶[舁][牙]` 算一条，`⿶[舁][牙]` 另算一条。"""
-    return (repr(head) + "=" if head else "") + repr(node)
+def _def_key(head, nodes) -> str:
+    """一条抽构「定义」的键：`[與]=⿶[舁][牙]` 算一条，`⿶[舁][牙]` 另算一条，
+    `[氶]=⿴[𠬞][卩]=[丞]` 整条算一条。"""
+    return "=".join(([repr(head)] if head else []) + [repr(n) for n in nodes])
 
 
 def _build_indexes() -> tuple[dict[str, list[tuple[str, int]]], set[str]]:
@@ -71,17 +73,17 @@ def _build_indexes() -> tuple[dict[str, list[tuple[str, int]]], set[str]]:
     units: set[str] = set()
 
     for e in entrystore.all_entries():
-        prefix, head, _body, node = _parse_expr(e["con"] or "")
-        if prefix or node is None:
+        prefix, head, nodes = _parse_expr(e["con"] or "")
+        if prefix or not nodes:
             continue
-        key = _def_key(head, node)
+        key = _def_key(head, nodes)
         defs.setdefault(key, []).append((e["char"], e["seq"]))
         if head is not None:
             # `[舁]=⿱[𦥑][𠬞]` 这条同时定义了部件 `[舁]` 本身
             units.add(repr(head))
             units.add("[" + head.shape + "]")
-        elif node.operator is None:
-            chars = node.chars()
+        elif len(nodes) == 1 and nodes[0].operator is None:
+            chars = nodes[0].chars()
             if len(chars) == 1:
                 units.add(repr(chars[0]))
                 units.add("[" + chars[0].shape + "]")
@@ -105,10 +107,10 @@ def unit_defs() -> dict[str, list[tuple[str, int]]]:
 def check_unique_unit(entry: dict, defs: dict[str, list[tuple[str, int]]]) -> list[dict]:
     """同一条抽构只能有一个定义者（`[下]`、`⿰[虫][下]`、`[與]=⿶[舁][牙]` 都一样），
     其余应写成 `=…`。"""
-    prefix, head, _body, node = _parse_expr(entry["con"] or "")
-    if prefix or node is None:
+    prefix, head, nodes = _parse_expr(entry["con"] or "")
+    if prefix or not nodes:
         return []
-    key = _def_key(head, node)
+    key = _def_key(head, nodes)
     owners = defs.get(key) or []
     me = (entry["char"], entry["seq"])
     if len(owners) < 2:
@@ -136,21 +138,22 @@ def check_expression(expr: str, field: str, existing: set[str], seq: int) -> lis
         out.append(_issue("error", err.get("code") or "syntax", field, msg, seq))
         return out
 
-    _prefix, _head, _body, node = _parse_expr(expr)
-    if node is None:
+    _prefix, _head, nodes = _parse_expr(expr)
+    if not nodes:
         return out
 
     seen: set[str] = set()
-    for ch in node.chars():
-        unit = repr(ch)
-        base = "[" + ch.shape + "]"
-        if unit in existing or base in existing or unit in seen:
-            continue
-        seen.add(unit)
-        out.append(
-            _issue("warn", "missing-unit", field,
-                   f"部件 {unit} 还没有单独记录（需要一条抽构 = {base} 的记录）", seq)
-        )
+    for node in nodes:
+        for ch in node.chars():
+            unit = repr(ch)
+            base = "[" + ch.shape + "]"
+            if unit in existing or base in existing or unit in seen:
+                continue
+            seen.add(unit)
+            out.append(
+                _issue("warn", "missing-unit", field,
+                       f"部件 {unit} 还没有单独记录（需要一条抽构 = {base} 的记录）", seq)
+            )
     return out
 
 

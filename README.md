@@ -86,7 +86,7 @@ the source book — see below.
 
 抽构 / 参考抽构 are formatted as you type:
 
-* full-width `（）［］` become half-width, spaces are dropped;
+* full-width `（）［］＝` become half-width, spaces are dropped;
 * once the expression parses, the canonical form is written back with every
   component in brackets — `⿰木木` → `⿰[木][木]`, `⿱九乙（ᄅ）` → `⿱[九][乙(ᄅ)]`,
   `=下` → `=[下]` (the `= ~ * ?` prefix is kept);
@@ -150,6 +150,11 @@ keyed by `(character, seq)`:
 
 `ob` / `bi` / `xz` are picked in the editor (甲骨文 / 金文 / 小篆 rows, multi-select;
 candidates come from `/api/glyphs/ob`, `/api/glyphs/bi` and `/api/glyphs/seal`).
+The preview also lists the forms carried by the notes whose 抽构 points at this
+character (`=[𠀠]`, `[X]=…`): this note's own forms come first, then each borrowed
+one with its source in an inline code span (`- 金文：󰠼󱥨 󰠾 > |丌| 󰠽 > |其|`). The
+same rule covers all three kinds, and keeping the marker in code means the `|`
+characters can never be read as table syntax.
 
 **`num` is the key.** A number in `ob.jsonl` / `bi.jsonl` covers several glyphs, so
 `backend/scripts/renumber_glyphs.py` gave every repeat a letter suffix in file order
@@ -213,7 +218,7 @@ A shape is either a single component or an IDC operator followed by its
 operands:
 
 ```
-<shape> ::= [<char>=] <expr>
+<shape> ::= <expr> ( '=' <expr> )*
 <expr>  ::= <char> | <op> <expr> <expr> | <op> <expr> <expr> <expr>
 <char>  ::= 汉字 | 汉字(变体)
 ```
@@ -223,6 +228,12 @@ The optional `[與]=` head spells out which character is being decomposed, so
 not count as a leaf, it is kept (in brackets) by the formatter, and 核验 treats
 `[與]=…` and `…` as two different definitions — the same head + body written
 twice is still a `dup-unit`.
+
+`=` may be chained to spell out several equivalent forms of the same shape:
+`[氶]=⿴[𠬞][卩]=[丞]`. Every segment is parsed on its own (the first one is the
+head when it is a single component), `normalized` keeps the `=` between them,
+and the counts (`leaves`, `leaf_count`, `operators`) cover all segments — but
+the head still is not counted.
 
 17 operators are supported (`backend/shape.py` → `IDC.ARITY`):
 
@@ -248,8 +259,9 @@ The editor validates as you type and reports the exact position of a mistake:
 journal, booktitle, publisher, address, year, date, volume, number, pages,
 edition, url, doi, note). Two sources, merged by `id`:
 
-- `backend/data/papers.json` — 95 upstream records, **read-only**; saving one
-  writes an override instead of touching the upstream file;
+- `backend/data/papers.json` — 94 upstream records, **read-only** in the UI;
+  saving one writes an override instead of touching the upstream file (editing
+  the file by hand also takes effect — the cache watches its mtime too);
 - `abstract-shape/references.ndjson` — locally added / edited records (`R001`…).
 
 The citation line is built from the fields, and `date` wins over `year`. `date`

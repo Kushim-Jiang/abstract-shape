@@ -3,11 +3,12 @@
 
 数据来源有两份，**只读一份、可写一份**：
 
-  * `backend/data/papers.json`  —— 从上游导出的已有文献（97 条），只读；
+  * `backend/data/papers.json`  —— 从上游导出的已有文献，只读；
   * `abstract-shape/references.ndjson` —— 本仓库新增 / 修改的文献，一行一条。
 
 读取时先放只读的，再用可写的按 `id` 覆盖，所以改动都落在后者，
-上游数据不动，git diff 干净。
+上游数据不动，git diff 干净。改 `papers.json` 本身也生效 —— 缓存标记
+同时看两份文件的 mtime。
 
 字段（对齐 BibTeX）::
 
@@ -88,7 +89,8 @@ _CUSTOM: dict[str, dict] = {}
 #: 重复的引用键：{id: [来源, …]}，来源是 `papers.json` / `references.ndjson`
 _DUPS: dict[str, list[str]] = {}
 _LOADED = False
-_MTIME: float = -1.0
+#: 缓存标记：可写文件与内置文件各自的 mtime，任一改动都要重读
+_MTIME: tuple[float, float] = (-1.0, -1.0)
 
 
 def _norm_authors(value) -> list[str]:
@@ -203,13 +205,21 @@ def _normalize(rec: dict) -> dict:
     return out
 
 
+def _stamp() -> tuple[float, float]:
+    """缓存标记：`references.ndjson` 与 `papers.json` 的 mtime。"""
+    out: list[float] = []
+    for path in (STORE_FILE, BUILTIN_FILE):
+        try:
+            out.append(path.stat().st_mtime)
+        except OSError:
+            out.append(-1.0)
+    return (out[0], out[1])
+
+
 def _load() -> None:
     global _LOADED, _MTIME
-    try:
-        mtime = STORE_FILE.stat().st_mtime
-    except OSError:
-        mtime = -1.0
-    if _LOADED and mtime == _MTIME:
+    stamp = _stamp()
+    if _LOADED and stamp == _MTIME:
         return
 
     _BUILTIN.clear()
@@ -228,7 +238,7 @@ def _load() -> None:
                 _BUILTIN[rid] = _normalize(r)
 
     _CUSTOM.clear()
-    if mtime >= 0:
+    if stamp[0] >= 0:
         with open(STORE_FILE, "r", encoding="utf-8") as f:
             for line in f:
                 line = line.strip()
@@ -249,11 +259,11 @@ def _load() -> None:
             _DUPS[rid] = sources
 
     _LOADED = True
-    _MTIME = mtime
+    _MTIME = stamp
 
 
 def _flush() -> None:
-    global _MTIME, _LOADED
+    global _LOADED
     STORE_DIR.mkdir(parents=True, exist_ok=True)
     tmp = STORE_FILE.with_name(STORE_FILE.name + ".tmp")
     with open(tmp, "w", encoding="utf-8", newline="\n") as f:
@@ -262,10 +272,6 @@ def _flush() -> None:
             rec = {k: rec[k] for k in FIELD_KEYS if k in rec and rec[k] not in ("", [])}
             f.write(json.dumps(rec, ensure_ascii=False) + "\n")
     tmp.replace(STORE_FILE)
-    try:
-        _MTIME = STORE_FILE.stat().st_mtime
-    except OSError:
-        _MTIME = -1.0
     # 写回后要让 `_load()` 重读一遍，否则「重复引用键」还是旧的
     _LOADED = False
 

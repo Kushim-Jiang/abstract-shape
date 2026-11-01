@@ -1362,25 +1362,27 @@ function renderMarkdown(d) {
     if (e.ref_con) lines.push("- 参考抽构：`" + e.ref_con + "`");
     GLYPH_LINES.forEach(function (g) {
       const key = g[0];
-      let ids = (e[key] || []).slice();
-      let from = [];
-      if (!ids.length) {
-        sources.forEach(function (s) {
-          (s[key] || []).forEach(function (id) {
-            const mark = key + ":" + id;
-            if (ids.indexOf(id) >= 0 || supplemented[mark]) return;
-            ids.push(id);
-            supplemented[mark] = true;
-            if (from.indexOf(s.char) < 0) from.push(s.char);
-          });
+      const own = (e[key] || []).slice();
+      const extra = [];           // [编号, 来源字]：抽构指向本条的其它条带来的字形
+      sources.forEach(function (s) {
+        (s[key] || []).forEach(function (id) {
+          const mark = key + ":" + id;
+          if (own.indexOf(id) >= 0 || supplemented[mark]) return;
+          extra.push([id, s.char]);
+          supplemented[mark] = true;
         });
-      }
-      if (!ids.length) return;
-      lines.push("- " + g[1] + "：" + ids.map(function (id) {
+      });
+      if (!own.length && !extra.length) return;
+      // 本条自己的字形先列；借来的每个字形各自跟一个来源（`[bi:05038A] `> |其|``），
+      // 来源写在代码里，`|` 不会被当成表格语法
+      const ownText = own.map(function (id) {
         return "[" + g[2] + ":" + id + "]";
-      }).join("") + (from.length ? " > " + from.map(function (ch) {
-        return "|" + ch + "|";
-      }).join(" ") : ""));
+      }).join("");
+      const extraText = extra.map(function (p) {
+        return "[" + g[2] + ":" + p[0] + "] `> |" + p[1] + "|`";
+      }).join(" ");
+      lines.push("- " + g[1] + "：" + ownText +
+        (extraText ? (ownText ? " " : "") + extraText : ""));
     });
     if (e.con || e.ref_con || (e.ob && e.ob.length) ||
         (e.bi && e.bi.length) || (e.xz && e.xz.length)) lines.push("");

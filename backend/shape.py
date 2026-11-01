@@ -6,6 +6,7 @@
 
 抽构表达式的语法::
 
+    <shape>  ::= <expr> ( '=' <expr> )*
     <expr>   ::= <char> | <op> <expr> <expr> | <op> <expr> <expr> <expr>
     <char>   ::= 汉字 | 汉字(变体)
 
@@ -17,6 +18,9 @@
   * `〾`(VA) 是一元运算符，表示近似形；
   * 开头可以写「分解头」`[與]=`，表示这句讲的是 **與** 的分解
     （`[與]=⿶[舁][牙]`）；头本身不是部件，不计入叶子数。
+  * `=` 可以连写多段，表示同一种写法的几种等价形式（`[氶]=⿴[𠬞][卩]=[丞]`）；
+    每段各自解析，统计时合并，`normalized` 仍用 `=` 把各段接回去。
+    第一段若只解析出一个部件，它就是分解头（同前）。
 
 对外主要提供 `validate(expr)`，返回结构化结果（含错误位置），
 供前端在「抽构」输入框里实时提示。
@@ -24,7 +28,6 @@
 
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass, field
 
 # ─── 运算符（IDC） ─────────────────────────────────────────
@@ -185,7 +188,7 @@ class IDS:
 
 #: 输入法常见的全角标点，先换成半角再解析
 _FULLWIDTH_MAP = str.maketrans({
-    "（": "(", "）": ")", "［": "[", "］": "]",
+    "（": "(", "）": ")", "［": "[", "］": "]", "＝": "=",
 })
 
 
@@ -225,7 +228,7 @@ def _parse_variant(text: str, i: int) -> tuple[str, int]:
 
 
 def parse(expr: str) -> IDS:
-    """解析抽构表达式，失败抛 `ShapeSyntaxError`。
+    """解析一段抽构表达式（不含分解头与 `=` 连等），失败抛 `ShapeSyntaxError`。
 
     容错的写法都会先归一：全角 `（）`、部件外包 `[]`（`[乙(ᄅ)]`、`[乙](ᄅ)`）、
     整个表达式外包一层 `[]`（`[⿱九乙]`）。`normalized` 始终输出
@@ -234,10 +237,14 @@ def parse(expr: str) -> IDS:
     text = (expr or "").strip().translate(_FULLWIDTH_MAP)
     if not text:
         raise ShapeSyntaxError("抽构为空", 0, "empty")
+    return _parse_segment(text)
+
+
+def _parse_segment(text: str) -> IDS:
+    """解析一段表达式；整段外包一层 `[]` 的写法（`[⿱一丂]`）再试一次。"""
     try:
         return _parse_text(text)
     except ShapeSyntaxError:
-        # 整体外包一层 `[]`：`[⿱一丂]`
         if len(text) > 2 and text[0] == "[" and text[-1] == "]":
             return _parse_text(text[1:-1].strip())
         raise
@@ -336,37 +343,93 @@ def split_prefix(expr: str) -> tuple[str, str]:
     return "", s
 
 
-#: 分解头：`=` 左边那个部件，可写成 `[與]` / `與` / `[與(与)]`
-_HEAD_RE = re.compile(r"^(\[[^\[\]]+\]|[^\s\[\]=()⿰-⿿〾])\s*=\s*(.*)$", re.S)
+def split_chain(expr: str) -> tuple[str, list[tuple[int, str]]]:
+    """拆出前缀与 `=` 分开的各段：`[氶]=⿴[𠬞][卩]=[丞]`
+    → `("", [(0, "[氶]"), (4, "⿴[𠬞][卩]"), (13, "[丞]")])`。
+
+    每段带它在原表达式里的起点，出错时用来说明第几字符。
+    """
+    text = (expr or "").translate(_FULLWIDTH_MAP)   # 等长替换，位置不变
+    start = 0
+    while start < len(text) and text[start].isspace():
+        start += 1
+    end = len(text)
+    while end > start and text[end - 1].isspace():
+        end -= 1
+    prefix = ""
+    if start < end and text[start] in PREFIX_CHARS:
+        prefix = text[start]
+        start += 1
+    if start == end:
+        return prefix, []
+
+    out: list[tuple[int, str]] = []
+    seg_start = start
+    for i in range(start, end + 1):
+        if i == end or text[i] == "=":
+            raw = text[seg_start:i]
+            lead = len(raw) - len(raw.lstrip())
+            out.append((seg_start + lead, raw.strip()))
+            seg_start = i + 1
+    return prefix, out
+
+
+def parse_chain(expr: str) -> tuple[str, "Char | None", list[IDS]]:
+    """拆前缀 / 分解头，并逐段解析 `=` 连起来的等价写法。
+
+    返回 `(prefix, head, nodes)`；失败抛 `ShapeSyntaxError`，`pos` 相对 `expr`。
+    """
+    prefix, segs = split_chain(expr)
+    if not segs:
+        raise ShapeSyntaxError("抽构为空", 0, "empty")
+
+    head: Char | None = None
+    start = 0
+    if len(segs) > 1:
+        try:
+            first = _parse_segment(segs[0][1])
+        except ShapeSyntaxError:
+            first = None
+        if first is not None and first.operator is None and len(first.operands) == 1:
+            head = first.operands[0]
+            start = 1
+
+    nodes: list[IDS] = []
+    for pos, seg in segs[start:]:
+        if not seg:
+            raise ShapeSyntaxError("「=」之后没有抽构", pos, "empty")
+        try:
+            nodes.append(_parse_segment(seg))
+        except ShapeSyntaxError as e:
+            e.pos += pos
+            raise
+    return prefix, head, nodes
 
 
 def split_head(expr: str) -> tuple[str, "Char | None", str]:
     """拆出前缀与分解头：`[與]=⿶[舁][牙]` → `("", Char("與"), "⿶[舁][牙]")`。
 
-    没有 `部件=` 开头的就返回 `(prefix, None, 去掉前缀后的表达式)`。
+    没有 `部件=` 开头的就返回 `(prefix, None, 去掉前缀后的表达式)`；
+    连等的表达式里，剩余各段用 `=` 接回 `body`。
     """
-    s = (expr or "").strip().translate(_FULLWIDTH_MAP)
-    prefix = ""
-    rest = s
-    if rest and rest[0] in PREFIX_CHARS:
-        prefix, rest = rest[0], rest[1:].strip()
-    m = _HEAD_RE.match(rest)
-    if not m:
-        return prefix, None, rest
-    try:
-        node = _parse_text(m.group(1).strip())
-    except ShapeSyntaxError:
-        return prefix, None, rest
-    if node.operator is None and len(node.operands) == 1:
-        return prefix, node.operands[0], m.group(2).strip()
-    return prefix, None, rest
+    prefix, segs = split_chain(expr)
+    if not segs:
+        return prefix, None, ""
+    if len(segs) > 1:
+        try:
+            first = _parse_segment(segs[0][1])
+        except ShapeSyntaxError:
+            first = None
+        if first is not None and first.operator is None and len(first.operands) == 1:
+            return prefix, first.operands[0], "=".join(s for _, s in segs[1:])
+    return prefix, None, "=".join(s for _, s in segs)
 
 
 def validate(expr: str, *, idc_only: bool = False) -> dict:
     """校验抽构表达式，返回结构化结果。
 
     参数:
-      expr      要校验的表达式（可带 `= ~ * ?` 前缀）
+      expr      要校验的表达式（可带 `= ~ * ?` 前缀，可用 `=` 连写多段等价写法）
       idc_only  只接受含运算符的表达式（纯单字不算「抽构」）
 
     返回::
@@ -374,29 +437,19 @@ def validate(expr: str, *, idc_only: bool = False) -> dict:
         {
           "ok": bool,
           "error": {"message": str, "pos": int, "code": str} | None,
-          "normalized": str,          # 规范化后的表达式（部件加 []，前缀/分解头保留）
+          "normalized": str,          # 规范化后的表达式（部件加 []，前缀/分解头/连等保留）
           "prefix": str,              # `= ~ * ?` 里的一个，没有则为空
           "head": str,                # 分解头 `[與]`，没有则为空
-          "leaves": str,              # 叶子部件串
+          "leaves": str,              # 叶子部件串（各段合并）
           "leaf_count": int,
           "depth": int,
           "operators": {op: count},
           "warnings": [str],
         }
     """
-    text = (expr or "").strip()
-    prefix, head, body = split_head(text)
-    head_repr = repr(head) if head else ""
-    if not body:
-        # `[與]=` 这种有头没内容的不算空表达式
-        if head:
-            return {
-                "ok": False,
-                "error": {"message": "「=」之后没有抽构", "pos": len(text), "code": "empty"},
-                "normalized": "", "prefix": prefix, "head": head_repr,
-                "leaves": "", "leaf_count": 0, "depth": 0, "operators": {},
-                "warnings": [],
-            }
+    prefix, segs = split_chain(expr)
+    if not segs:
+        # 空表达式（`=` / `~` 这种只有前缀的也算空）
         return {
             "ok": True, "error": None, "normalized": "", "prefix": prefix, "head": "",
             "leaves": "", "leaf_count": 0, "depth": 0, "operators": {},
@@ -404,64 +457,67 @@ def validate(expr: str, *, idc_only: bool = False) -> dict:
         }
 
     try:
-        node = parse(body)
+        prefix, head, nodes = parse_chain(expr)
     except ShapeSyntaxError as e:
-        err = e.as_dict()
-        # 前缀 / 分解头各占若干字符，位置补回原文
-        try:
-            err["pos"] += text.rindex(body)
-        except ValueError:
-            err["pos"] += len(prefix) + (len(head_repr) + 1 if head else 0)
+        # 出错时也把能认出来的分解头报上去，方便前端高亮
+        _p, h, _b = split_head(expr)
         return {
-            "ok": False, "error": err, "normalized": "", "prefix": prefix,
-            "head": head_repr, "leaves": "", "leaf_count": 0, "depth": 0,
+            "ok": False, "error": e.as_dict(), "normalized": "", "prefix": prefix,
+            "head": repr(h) if h else "", "leaves": "", "leaf_count": 0, "depth": 0,
             "operators": {}, "warnings": [],
         }
 
+    head_repr = repr(head) if head else ""
     warnings: list[str] = []
-    chars = node.chars()
+    chars = [c for n in nodes for c in n.chars()]
     leaves = "".join(c.shape for c in chars)
 
-    if idc_only and node.operator is None:
+    if idc_only and all(n.operator is None for n in nodes):
         warnings.append("这是单个部件，不是含运算符的抽构")
 
     if not chars:
         warnings.append("抽构里没有任何部件")
 
-    # 单件运算符没意义
-    for n in node.walk():
-        if isinstance(n, IDS) and n.operator and len(n.operands) < 2:
-            warnings.append(
-                f"「{n.operator}」是 {IDC.NAME[n.operator]}，只带一个部件（可以省略）"
-            )
+    operators: dict[str, int] = {}
+    for node in nodes:
+        # 单件运算符没意义
+        for n in node.walk():
+            if isinstance(n, IDS) and n.operator and len(n.operands) < 2:
+                warnings.append(
+                    f"「{n.operator}」是 {IDC.NAME[n.operator]}，只带一个部件（可以省略）"
+                )
 
-    # 同一个部件在顶层重复出现，多半是笔误
-    if len(chars) > 1:
-        shapes = [c.shape for c in chars]
-        dupes = {s for s in shapes if shapes.count(s) > 1}
-        if dupes and node.operator not in (IDC.LL, IDC.UU):
-            warnings.append(
-                "重复部件 " + "、".join(sorted(dupes)) + "，确认是否应该用 ⿰/⿱ 之外的运算符"
-            )
+        # 同一段里部件重复出现，多半是笔误（连等的各路写法之间重复是正常的）
+        if node.operator and node.operator not in (IDC.LL, IDC.UU):
+            shapes = [c.shape for c in node.chars()]
+            dupes = {s for s in shapes if shapes.count(s) > 1}
+            if dupes:
+                warnings.append(
+                    "重复部件 " + "、".join(sorted(dupes)) + "，确认是否应该用 ⿰/⿱ 之外的运算符"
+                )
+
+        for op, k in node.operators_used().items():
+            operators[op] = operators.get(op, 0) + k
 
     return {
         "ok": True,
         "error": None,
-        "normalized": prefix + (head_repr + "=" if head else "") + repr(node),
+        "normalized": prefix + "=".join(
+            ([head_repr] if head else []) + [repr(n) for n in nodes]),
         "prefix": prefix,
         "head": head_repr,
         "leaves": leaves,
         "leaf_count": len(chars),
-        "depth": node.depth(),
-        "operators": node.operators_used(),
+        "depth": max((n.depth() for n in nodes), default=0),
+        "operators": operators,
         "warnings": warnings,
     }
 
 
 def normalize(expr: str) -> str:
-    """把表达式规范化为 `[A]` 形式（解析失败则原样返回）。"""
-    prefix, head, body = split_head(expr)
-    node = try_parse(body) if body else None
-    if node is None:
+    """把表达式规范化为 `[A]` 形式，`=` 连等的各段分别保留（解析失败则原样返回）。"""
+    try:
+        prefix, head, nodes = parse_chain(expr)
+    except ShapeSyntaxError:
         return (expr or "")
-    return prefix + (repr(head) + "=" if head else "") + repr(node)
+    return prefix + "=".join(([repr(head)] if head else []) + [repr(n) for n in nodes])
