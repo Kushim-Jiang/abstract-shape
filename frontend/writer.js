@@ -1060,7 +1060,8 @@ function previewDoc() {
     ref_con: val("ent-ref-con").trim(),
     ob: WR.obSel.slice(),
     bi: WR.biSel.slice(),
-    xz: WR.xzSel.slice(),
+    // 和保存时保持一致：没手动选就用字表映射出来的默认小篆
+    xz: WR.xzSel.length ? WR.xzSel.slice() : (WR.xzDefault || []).slice(),
     notes: val("ent-notes"),
   };
   if (!draft.con && !draft.ref_con && !(draft.notes || "").trim() &&
@@ -1393,6 +1394,13 @@ function renderMarkdown(d) {
 async function saveEntry() {
   const d = WR.doc;
   if (!d) return;
+  // 小篆的「默认」只是按字表映射出来的显示，保存时转成真正选中，
+  // 否则 WR.xzSel 还是空的，这一条就存不下小篆
+  if (!WR.xzSel.length && (WR.xzDefault || []).length) {
+    WR.xzSel = WR.xzDefault.slice();
+    WR.xzDefault = [];
+    renderGlyphChips("xz");
+  }
   const payload = collectEntry();
   if (!payload) return;
 
