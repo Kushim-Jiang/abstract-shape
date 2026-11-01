@@ -942,6 +942,9 @@ body.col-resizing * { cursor: col-resize !important; }
   background: var(--bg3); border-radius: 0 4px 4px 0;
   font-family: var(--font-quote);
 }
+/* 引文内侧上下留白要和 padding 一致：把首尾段落的 margin 吃掉 */
+.markdown-body blockquote > *:first-child { margin-top: 0; }
+.markdown-body blockquote > *:last-child { margin-bottom: 0; }
 .markdown-body code {
   background: var(--bg4); padding: 1px 5px; border-radius: 3px;
   font-size: .9em; font-family: "Cascadia Mono", Consolas, monospace;
