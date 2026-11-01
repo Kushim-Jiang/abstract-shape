@@ -292,6 +292,46 @@ def all_entries() -> list[dict]:
     return [dict(e) for _k, e in sorted(_ENTRIES.items())]
 
 
+#: 只指向一个字的抽构：`=[丞]` / `[丞]` / `=丞`（可带变体括注 `[丞(拯)]`）。
+#: `*` / `~` / `?` 是构拟、存疑等标注，不算同字，不做增补。
+_REF_ONLY_RE = re.compile(
+    r"^=?\s*\[?\s*([^\[\]()（）\s=*~?]+?)\s*(?:[（(][^\[\]()（）]*[）)])?\s*\]?$"
+)
+
+
+def ref_only(con: str) -> str | None:
+    """`=[丞]` → `丞`；不是「整个抽构就是一个字」的返回 None。"""
+    s = (con or "").strip()
+    if not s or any(ch in s for ch in shape.IDC.ARITY):
+        return None
+    m = _REF_ONLY_RE.match(s)
+    return m.group(1) if m else None
+
+
+def pointing_entries(char: str) -> list[dict]:
+    """抽构直接指向 `char` 的其它条（如 㞼 的 `=[丞]`）。
+
+    预览里本字没选字形时，从这些条增补甲骨文 / 金文 / 小篆。
+    """
+    _load()
+    out: list[dict] = []
+    for (ch, seq), e in sorted(_ENTRIES.items()):
+        if ch == char:
+            continue
+        if ref_only(e["con"]) != char and ref_only(e["ref_con"]) != char:
+            continue
+        if not (e["ob"] or e["bi"] or e["xz"]):
+            continue
+        out.append({
+            "char": ch,
+            "seq": seq,
+            "ob": list(e["ob"]),
+            "bi": list(e["bi"]),
+            "xz": list(e["xz"]),
+        })
+    return out
+
+
 def data_token() -> tuple[float, int]:
     """数据版本号（文件 mtime + 条数），给上层的缓存做失效判断。"""
     _load()

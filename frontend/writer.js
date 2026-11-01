@@ -1351,19 +1351,34 @@ function renderMarkdown(d) {
     lines.push("（还没有条）");
     return lines.join("\n") + "\n";
   }
+  // 抽构指向这个字的其它条（如 㞼 的 `=[丞]`）：本条没选字形时从它们增补
+  const sources = d.ref_sources || [];
+  const supplemented = {};
+  const GLYPH_LINES = [["ob", "甲骨文", "ob"], ["bi", "金文", "bi"], ["xz", "小篆", "seal"]];
   es.forEach(function (e) {
     lines.push("## " + d.char + "-" + e.seq, "");
     if (e.con) lines.push("- 抽构：`" + e.con + "`");
     if (e.ref_con) lines.push("- 参考抽构：`" + e.ref_con + "`");
-    if (e.ob && e.ob.length) {
-      lines.push("- 甲骨文：" + e.ob.map(function (n) { return "[ob:" + n + "]"; }).join(""));
-    }
-    if (e.bi && e.bi.length) {
-      lines.push("- 金文：" + e.bi.map(function (n) { return "[bi:" + n + "]"; }).join(""));
-    }
-    if (e.xz && e.xz.length) {
-      lines.push("- 小篆：" + e.xz.map(function (s) { return "[seal:" + s + "]"; }).join(""));
-    }
+    GLYPH_LINES.forEach(function (g) {
+      const key = g[0];
+      let ids = (e[key] || []).slice();
+      let from = [];
+      if (!ids.length) {
+        sources.forEach(function (s) {
+          (s[key] || []).forEach(function (id) {
+            const mark = key + ":" + id;
+            if (ids.indexOf(id) >= 0 || supplemented[mark]) return;
+            ids.push(id);
+            supplemented[mark] = true;
+            if (from.indexOf(s.char) < 0) from.push(s.char);
+          });
+        });
+      }
+      if (!ids.length) return;
+      lines.push("- " + g[1] + "：" + ids.map(function (id) {
+        return "[" + g[2] + ":" + id + "]";
+      }).join("") + (from.length ? "（从 " + from.join("、") + " 增补）" : ""));
+    });
     if (e.con || e.ref_con || (e.ob && e.ob.length) ||
         (e.bi && e.bi.length) || (e.xz && e.xz.length)) lines.push("");
     if ((e.notes || "").trim()) { lines.push(e.notes.trim(), ""); }

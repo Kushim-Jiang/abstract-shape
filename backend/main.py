@@ -1142,6 +1142,7 @@ def get_char_entries(char: str):
         "block": blocks.name_of(blocks.classify(val)) if cp else "",
         "entries": es,
         "count": len(es),
+        "ref_sources": entrystore.pointing_entries(c),
         "next_seq": entrystore.next_seq(c),
         "preview": entrystore.render_character(c),
     }
