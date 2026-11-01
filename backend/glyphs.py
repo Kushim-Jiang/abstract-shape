@@ -213,8 +213,8 @@ def ob_candidates(char: str = "", q: str = "", limit: int = 240) -> dict:
         push([i for i in _OB["all"]
               if low in i["num"] or low in i["comm"]
               or any(low in c.lower() for c in i["con"])])
-    if not out:
-        # 这个字还没有标注过：先列出全部，方便按编号翻
+    if not out and not q:
+        # 这个字还没有标注过：先列出全部，方便按编号翻（搜索没结果时不要兜底）
         return {"results": _OB["all"][:limit], "total": len(_OB["all"]), "browse": True}
     total = len(out)
     return {"results": out[:limit], "total": total, "browse": False}
@@ -242,8 +242,8 @@ def bi_candidates(char: str = "", q: str = "", limit: int = 240) -> dict:
         push([i for i in _BI["all"]
               if low in i["num"] or low in i["comm"]
               or any(low in c.lower() for c in i["con"])])
-    if not out:
-        # 这个字还没有标注过：先列出全部，方便按编号翻
+    if not out and not q:
+        # 这个字还没有标注过：先列出全部，方便按编号翻（搜索没结果时不要兜底）
         return {"results": _BI["all"][:limit], "total": len(_BI["all"]), "browse": True}
     total = len(out)
     return {"results": out[:limit], "total": total, "browse": False}

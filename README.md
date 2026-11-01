@@ -169,20 +169,22 @@ one, otherwise `zi`). In Markdown the forms are written `[ob:0001,0200]`,
 
 The bronze corpus is numbered per volume, each volume restarting at `001`, so a
 number is `[卷][三位卷内号]` written as five digits: `01001` (卷1 号1) … `01193`,
-`02001` (卷2 号1) … `02452`, … `14349` (卷14).
+`02001` (卷2 号1) … `02452`, … `14350` (卷14).
 
 `bi.jsonl` was stored with a flat 1–4419 running number, which lost the volume
-breaks. `backend/data/bi_volumes.json` records how many numbers each volume has:
+breaks. `backend/data/bi_volumes.json` records how many numbers each volume has
+and which numbers the book skips:
 
 ```json
-[193, 452, 466, 265, 325, 371, 442, 283, 243, 303, 192, 338, 197, 351]
+{"volumes": [193, 452, 466, 265, 325, 371, 442, 283, 243, 303, 192, 338, 197, 351],
+ "holes": ["07086"]}
 ```
 
 and `backend/scripts/number_bi_volumes.py` walks the file in order, assigning
-`卷 × 1000 + 卷内号`. When several glyphs share one number they keep an `A`/`B`/…
-suffix (`01001`, `01001A`, `01001B`). The table adds up to 4421 while the file
-holds 4419 numbers, so 卷14 ends at `14349` — two numbers of the book have no
-bronze forms in this corpus.
+`卷 × 1000 + 卷内号` and skipping the holes (`07085` is followed by `07087`). When
+several glyphs share one number they keep an `A`/`B`/… suffix (`01001`, `01001A`,
+`01001B`). The table then yields 4420 numbers while the file holds 4419, so 卷14
+ends at `14350` — one number of the book has no bronze forms in this corpus.
 
 ### Citations
 
