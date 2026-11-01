@@ -1,16 +1,17 @@
 """
-按「卷 × 1000 + 卷内三位序号」重编 `bi.jsonl` 的编号（金文原书的编法）。
+按「卷 × 1000 + 卷内号」重编 `bi.jsonl` 的编号（金文原书的编法）。
 
-原书每一卷都从 `001` 重新编号，所以完整编号是 `0` + 卷号 + 三位卷内号：
+原书每一卷都从 `001` 重新编号，所以完整编号是 `卷号 × 1000 + 卷内号`，写成五位：
 
     卷一 01001-01193、卷二 02001-02452、卷三 03001-…（卷内最多 999 条）
 
 `bi.jsonl` 现在的编号是后来重排的连续流水号（1–4419），卷界已经丢了，所以
-每卷有多少条得写在 `backend/data/bi_volumes.json` 里，按卷序：
+每卷有多少条、哪几个号原书就没有，都得写在 `backend/data/bi_volumes.json` 里：
 
-    [193, 452, 311, ...]
+    {"volumes": [193, 452, ...], "holes": ["07086"]}
 
-卷内的每个「号」（一处）带上原样的 A/B/C 后缀，例如 `01001`、`01001A`。
+`holes` 是原书里跳过的号（比如 07085 之后直接 07087），这些号不占文件里的记录。
+卷内一个号下的多个字形带 A/B/C 后缀，例如 `01001`、`01001A`。
 
 用法：
 
@@ -39,17 +40,27 @@ def suffix_of(num: str) -> str:
     return m.group(2) if m else ""
 
 
-def main() -> None:
-    dry = "--dry-run" in sys.argv
+def load_volumes() -> tuple[list[int], set[str]]:
     if not VOL_FILE.exists():
         raise SystemExit(
-            f"缺少 {VOL_FILE.name}：请写成每卷条目数的数组，如 [193, 452, 311]"
+            f"缺少 {VOL_FILE.name}：请写成 "
+            '{"volumes": [193, 452, ...], "holes": ["07086"]}'
         )
-    sizes = json.loads(VOL_FILE.read_text(encoding="utf-8"))
-    if not isinstance(sizes, list) or not all(isinstance(x, int) and x > 0 for x in sizes):
-        raise SystemExit("bi_volumes.json 应该是正整数数组")
+    data = json.loads(VOL_FILE.read_text(encoding="utf-8"))
+    if isinstance(data, list):
+        sizes, holes = data, []
+    else:
+        sizes, holes = data.get("volumes") or [], data.get("holes") or []
+    if not sizes or not all(isinstance(x, int) and x > 0 for x in sizes):
+        raise SystemExit("volumes 应该是正整数数组")
     if any(x > 999 for x in sizes):
         raise SystemExit("每卷最多 999 个号（三位序号）")
+    return sizes, {str(h).strip() for h in holes if str(h).strip()}
+
+
+def main() -> None:
+    dry = "--dry-run" in sys.argv
+    sizes, holes = load_volumes()
 
     rows = [json.loads(l) for l in BI_FILE.read_text(encoding="utf-8").splitlines() if l.strip()]
 
@@ -62,40 +73,39 @@ def main() -> None:
             seen.add(b)
             order.append(b)
 
-    total_vol = sum(sizes)
-    if total_vol < len(order):
-        raise SystemExit(
-            f"各卷合计 {total_vol} 个号，但 bi.jsonl 里有 {len(order)} 个号，分不完"
-        )
-    if total_vol > len(order):
-        print(
-            f"注意：各卷合计 {total_vol} 个号，文件里只有 {len(order)} 个；"
-            "多出来的按「原书有、这批没有字形」处理"
-        )
-
-    # 旧号 → 新号（0 + 卷号 + 三位卷内号，即 卷号 × 1000 + k 补零到 5 位）
-    mapping: dict[str, str] = {}
-    i = 0
+    # 目标编号序列：卷 × 1000 + 卷内号，跳过原书就没有的号
+    targets: list[str] = []
+    per_vol: list[int] = []
     for vol, size in enumerate(sizes, start=1):
-        for k in range(size):
-            if i >= len(order):
-                break
-            mapping[order[i]] = f"{vol * 1000 + k + 1:05d}"
-            i += 1
-
-    for r in rows:
-        b = base_of(r["num"])
-        r["num"] = mapping[b] + suffix_of(r["num"])
+        n = 0
+        for k in range(1, size + 1):
+            num = f"{vol * 1000 + k:05d}"
+            if num in holes:
+                continue
+            targets.append(num)
+            n += 1
+        per_vol.append(n)
 
     print(f"{BI_FILE.name}: {len(rows)} records, {len(order)} numbers, {len(sizes)} volumes")
+    if len(targets) != len(order):
+        print(
+            f"注意：各卷合计 {sum(sizes)} 个号、跳过 {len(holes)} 个空号，应得 "
+            f"{len(targets)} 个，文件里有 {len(order)} 个（差 {len(order) - len(targets):+d}）"
+        )
+
+    mapping = dict(zip(order, targets))
+    for r in rows:
+        b = base_of(r["num"])
+        if b in mapping:
+            r["num"] = mapping[b] + suffix_of(r["num"])
+
     start = 0
-    for vol, size in enumerate(sizes, start=1):
-        take = min(size, len(order) - start)
-        if take <= 0:
-            print(f"  卷{vol}: 0 个号（表比文件长）")
-            continue
-        print(f"  卷{vol}: {take} 个号, {mapping[order[start]]}..{mapping[order[start + take - 1]]}")
-        start += take
+    for vol, n in enumerate(per_vol, start=1):
+        used = [mapping[order[i]] for i in range(start, min(start + n, len(order)))]
+        if used:
+            print(f"  卷{vol}: {len(used)} 个号, {used[0]}..{used[-1]}")
+        start += n
+
     if dry:
         print("(dry run, nothing written)")
         return
