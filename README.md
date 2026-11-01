@@ -77,9 +77,10 @@ Each chip is one entry of `annotations` (`con`), so existing records keep workin
  "annotations": [{"con": "匕(妣)", "ref": "", "comm": ""}, {"con": "匕(比)", "ref": "", "comm": ""}]}
 ```
 
-`num` is unique in both files (duplicates carry an `A`/`B`/… suffix), so a record
-is located by `num`; the endpoints are `POST /api/ob/annotate`,
-`/api/ob/annotate/delete` and the same pair for `/api/bi/…`.
+`num` is unique in both files, so a record is located by `num`; the endpoints are
+`POST /api/ob/annotate`, `/api/ob/annotate/delete` and the same pair for
+`/api/bi/…`. 甲骨文 numbers are the corpus's running numbers; 金文 numbers follow
+the source book — see below.
 
 ### Shape input formatting
 
@@ -143,26 +144,45 @@ keyed by `(character, seq)`:
 | `con` | the abstract shape — an IDS expression, validated by `backend/shape.py` |
 | `ref_con` | a comparative shape; `=字` / `*字` are annotation conventions and skip IDS validation |
 | `ob` | oracle-bone forms attached to this note — `num`s from `backend/data/ob.jsonl`, e.g. `["0200"]` |
-| `bi` | bronze-inscription forms — `num`s from `backend/data/bi.jsonl`, e.g. `["00001", "00001A"]` |
+| `bi` | bronze-inscription forms — `num`s from `backend/data/bi.jsonl`, e.g. `["01001", "01001A"]` |
 | `xz` | small-seal forms attached to this note — `num`s from `backend/data/seal.ndjson`, e.g. `["01998"]` |
 | `notes` | the note body, free Markdown; citations are written inline (see below) |
 
 `ob` / `bi` / `xz` are picked in the editor (甲骨文 / 金文 / 小篆 rows, multi-select;
 candidates come from `/api/glyphs/ob`, `/api/glyphs/bi` and `/api/glyphs/seal`).
 
-**`num` is the key.** A 拓片号 in `ob.jsonl` / `bi.jsonl` is shared by several
-glyphs, so `backend/scripts/renumber_glyphs.py` gave every duplicate a letter
-suffix in file order (`0001`, `0001A`, `0001B`, …); `seal.ndjson` is 1–11108 and
-never collides. All three tables are now keyed by a unique `num`.
+**`num` is the key.** A number in `ob.jsonl` / `bi.jsonl` covers several glyphs, so
+`backend/scripts/renumber_glyphs.py` gave every repeat a letter suffix in file order
+(`0001`, `0001A`, `0001B`, …); `seal.ndjson` is 1–11108 and never collides. All
+three tables are keyed by a unique `num`.
 
 The glyphs live in the private use area (fonts `ZihuiSongJGW.ttf`,
 `ZihuiSongJW.otf`, `frontend/sw-ccz-1963-rev1.ttf`). Only the seal codepoint can
 be computed — `0xF0000 + num - 1` — because its `num` is still the font index;
-the suffixed oracle-bone / bronze ids cannot, so the frontend fetches the whole
+the oracle-bone / bronze ids cannot, so the frontend fetches the whole
 `num → glyph` table once from `/api/glyphs/index`. `seal.ndjson` carries
 `{num, glyph, char}` (11108 forms, `char` = the table's `zi_strict` when it has
 one, otherwise `zi`). In Markdown the forms are written `[ob:0001,0200]`,
-`[bi:00001A]` and `[seal:01998]`.
+`[bi:01001A]` and `[seal:01998]`.
+
+### 金文 number = 卷 × 1000 + 卷内号
+
+The bronze corpus is numbered per volume, each volume restarting at `001`, so a
+number is `[卷][三位卷内号]` written as five digits: `01001` (卷1 号1) … `01193`,
+`02001` (卷2 号1) … `02452`, … `14349` (卷14).
+
+`bi.jsonl` was stored with a flat 1–4419 running number, which lost the volume
+breaks. `backend/data/bi_volumes.json` records how many numbers each volume has:
+
+```json
+[193, 452, 466, 265, 325, 371, 442, 283, 243, 303, 192, 338, 197, 351]
+```
+
+and `backend/scripts/number_bi_volumes.py` walks the file in order, assigning
+`卷 × 1000 + 卷内号`. When several glyphs share one number they keep an `A`/`B`/…
+suffix (`01001`, `01001A`, `01001B`). The table adds up to 4421 while the file
+holds 4419 numbers, so 卷14 ends at `14349` — two numbers of the book have no
+bronze forms in this corpus.
 
 ### Citations
 
@@ -254,7 +274,7 @@ wins over code-point order. 扩展J (U+323B0–U+3347F, Unicode 17.0) follows �
 | `[[丂-1]]` | cross-reference to note 丂-1 (clickable) |
 | `[[文献: L005]]` | reference link rendered as `[L005]` |
 | `[ob:0001,0200]` | oracle-bone glyphs (numbers from `ob.jsonl`) |
-| `[bi:00001A]` | bronze-inscription glyphs (`num` from `bi.jsonl`) |
+| `[bi:01001A]` | bronze-inscription glyphs (`num` from `bi.jsonl`) |
 | `[seal:01998]` | small-seal glyphs (`num` from `seal.ndjson`) |
 
 The older `[[卜:…]]` / `[[金:…]]` / `[[篆:…]]` spellings still render.
