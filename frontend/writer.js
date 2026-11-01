@@ -1377,7 +1377,9 @@ function renderMarkdown(d) {
       if (!ids.length) return;
       lines.push("- " + g[1] + "：" + ids.map(function (id) {
         return "[" + g[2] + ":" + id + "]";
-      }).join("") + (from.length ? "（从 " + from.join("、") + " 增补）" : ""));
+      }).join("") + (from.length ? " > " + from.map(function (ch) {
+        return "|" + ch + "|";
+      }).join(" ") : ""));
     });
     if (e.con || e.ref_con || (e.ob && e.ob.length) ||
         (e.bi && e.bi.length) || (e.xz && e.xz.length)) lines.push("");
