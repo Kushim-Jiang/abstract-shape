@@ -1,6 +1,8 @@
 {"id": "C005", "type": "article", "author": ["陳劍"], "article_title": "金文字詞零釋（四則）", "year": "2008", "date": "02-05", "url": "https://www.fdgwz.org.cn/Web/Show/335"}
 {"id": "C006", "type": "article", "author": ["陳劍"], "article_title": "甲骨金文舊釋“䵼”之字及相關諸字新釋 （下）", "year": "2007", "date": "12-29", "url": "https://www.fdgwz.org.cn/Web/Show/282"}
+{"id": "D001", "type": "inproceedings", "author": ["董蓮池"], "article_title": "釋兩周銅器銘文中的“業”字", "book_title": "吉林大學古籍整理研究所建所十五周年紀念文集", "publisher": "吉林大學出版社", "location": "長春", "year": "1998", "date": "12", "pages": "25-30"}
 {"id": "G002", "type": "article", "author": ["甘木"], "article_title": "說字（九則）", "year": "2025", "date": "05-29", "url": "https://www.fdgwz.org.cn/Web/Show/11262"}
+{"id": "G003", "type": "incollection", "author": ["郭永秉", "鄔可晶"], "editor": ["李學勤"], "article_title": "説“索”、“𫦎”", "book_title": "出土文獻", "publisher": "中西書局", "location": "上海", "year": "2012", "date": "12", "volume": "第三輯", "pages": "99-118"}
 {"id": "L005", "type": "article", "author": ["李春桃"], "article_title": "甲骨文中的“丂”字新釋", "journal": "甲骨文與殷商史", "year": "2020", "volume": "新十輯", "pages": "253-264"}
 {"id": "Q000", "type": "book", "author": ["裘錫圭"], "book_title": "文字學概要", "publisher": "商務印書館", "location": "北京", "year": "2013"}
 {"id": "Q002", "type": "incollection", "author": ["裘錫圭"], "editor": ["裘錫圭"], "article_title": "漢字形成問題的初步探索", "book_title": "裘錫圭學術文集·第四卷·語言文字與古文獻卷", "publisher": "復旦大學出版社", "location": "上海", "year": "2012", "date": "06", "volume": "4", "pages": "25-39"}
@@ -8,3 +10,4 @@
 {"id": "Q004", "type": "incollection", "author": ["裘錫圭"], "editor": ["裘錫圭"], "article_title": "釋“無終”", "book_title": "裘錫圭學術文集·第三卷·金文及其他古文字卷", "publisher": "復旦大學出版社", "location": "上海", "year": "2012", "date": "06", "volume": "3", "pages": "61-66"}
 {"id": "Z003", "type": "article", "author": ["周忠兵"], "article_title": "甲骨文中幾個从“丄（牡）”字的考辨", "journal": "中国文字研究", "year": "2006", "volume": "7", "pages": "139-143", "url": "https://www.doc88.com/p-9959691407239.html"}
 {"id": "Z005", "type": "book", "author": ["張富海"], "book_title": "漢人所謂古文之研究", "publisher": "線裝書局", "location": "北京", "year": "2007", "date": "05"}
+{"id": "Z006", "type": "incollection", "author": ["曾憲通"], "article_title": "從曾侯乙編鐘之鐘虡銅人說“虡”與“業”", "book_title": "古文字與出土文獻叢考", "publisher": "中山大學出版社", "location": "廣州", "year": "2005", "date": "01", "pages": "32-40"}
